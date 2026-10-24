@@ -30,6 +30,9 @@ docs/
 - `examples/`: programas AutoInfra de ejemplo y pruebas manuales.
 - `docs/`: documentación técnica del proyecto y contrato HTTP/JSON.
 
+El inventario de tokens para implementar el lexer está en
+[docs/ESPECIFICACION_LEXICA.md](./docs/ESPECIFICACION_LEXICA.md).
+
 ## Requisitos
 
 - Node.js 20.19 o superior.
