@@ -92,7 +92,8 @@ El lexer debe aplicar coincidencia más larga para operadores compuestos como `>
 - Un comentario multilínea sin cierre produce un error léxico con línea y columna de
   inicio.
 - Una cadena sin comilla de cierre y cualquier carácter no reconocido producen un
-  error léxico con línea y columna.
+  error léxico con línea y columna. Una secuencia de escape no soportada también
+  produce un error léxico en la posición de la barra invertida.
 - Al terminar el archivo, el lexer agrega el token sintético `EOF`, con lexema vacío
   y posición al final del archivo, para que el parser detecte el fin de entrada.
 
@@ -101,3 +102,7 @@ El lexer debe aplicar coincidencia más larga para operadores compuestos como `>
 El lexer identifica estructura textual; no determina si un identificador fue
 declarado, si un tipo es compatible, si una propiedad existe o si un valor cumple
 restricciones. Esas validaciones semánticas no forman parte del proyecto acordado.
+
+El cursor implementa `readStringLiteral()` para devolver el lexema original con
+comillas y el valor decodificado por separado; el escáner lo utilizará al emitir el
+token `STRING_LITERAL`.

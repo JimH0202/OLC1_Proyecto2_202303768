@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SourceCursor, UnterminatedCommentError } from './source-cursor.js';
+import {
+  InvalidStringEscapeError,
+  SourceCursor,
+  UnterminatedCommentError,
+  UnterminatedStringError,
+} from './source-cursor.js';
 
 test('reads each character with its original index, line and column', () => {
   const cursor = new SourceCursor('ab\nc');
@@ -151,6 +156,69 @@ test('does not consume a slash that does not begin a comment', () => {
 
   assert.equal(cursor.skipComment(), false);
   assert.equal(cursor.peek(), '/');
+  assert.equal(cursor.index, 0);
+});
+
+test('reads a string and decodes all supported escapes', () => {
+  const cursor = new SourceCursor('"say \\"hi\\"\\\\path\\nline\\ttab" next');
+
+  assert.deepEqual(cursor.readStringLiteral(), {
+    lexeme: '"say \\"hi\\"\\\\path\\nline\\ttab"',
+    value: 'say "hi"\\path\nline\ttab',
+    line: 1,
+    column: 1,
+  });
+  assert.equal(cursor.peek(), ' ');
+});
+
+test('reports an unterminated string at its opening line and column', () => {
+  const cursor = new SourceCursor(' \n  "unfinished');
+
+  cursor.skipWhitespace();
+  assert.throws(
+    () => cursor.readStringLiteral(),
+    (error) => {
+      assert.ok(error instanceof UnterminatedStringError);
+      assert.equal(error.type, 'lexical');
+      assert.equal(error.line, 2);
+      assert.equal(error.column, 3);
+      return true;
+    },
+  );
+});
+
+test('rejects unsupported escapes at the escape position', () => {
+  const cursor = new SourceCursor('"bad\\q"');
+
+  assert.throws(
+    () => cursor.readStringLiteral(),
+    (error) => {
+      assert.ok(error instanceof InvalidStringEscapeError);
+      assert.equal(error.type, 'lexical');
+      assert.equal(error.line, 1);
+      assert.equal(error.column, 5);
+      assert.equal(error.lexeme, '\\q');
+      return true;
+    },
+  );
+});
+
+test('rejects raw newlines inside strings', () => {
+  const cursor = new SourceCursor('"first\nsecond"');
+
+  assert.throws(
+    () => cursor.readStringLiteral(),
+    (error) => error instanceof UnterminatedStringError
+      && error.line === 1
+      && error.column === 1,
+  );
+  assert.equal(cursor.peek(), '\n');
+});
+
+test('requires the cursor to be positioned at an opening quote', () => {
+  const cursor = new SourceCursor('value');
+
+  assert.throws(() => cursor.readStringLiteral(), { name: 'TypeError' });
   assert.equal(cursor.index, 0);
 });
 

@@ -62,6 +62,66 @@ export class SourceCursor {
     throw new UnterminatedCommentError(start.line, start.column);
   }
 
+  readStringLiteral() {
+    if (this.peek() !== '"') {
+      throw new TypeError('El cursor debe estar al inicio de una cadena.');
+    }
+
+    const start = {
+      index: this.index,
+      line: this.line,
+      column: this.column,
+    };
+    let value = '';
+    this.advance();
+
+    while (!this.isAtEnd) {
+      const character = this.peek();
+
+      if (character === '"') {
+        this.advance();
+        return {
+          lexeme: this.source.slice(start.index, this.index),
+          value,
+          line: start.line,
+          column: start.column,
+        };
+      }
+
+      if (character === '\r' || character === '\n') {
+        throw new UnterminatedStringError(start.line, start.column);
+      }
+
+      if (character !== '\\') {
+        value += this.advance().character;
+        continue;
+      }
+
+      const escape = { line: this.line, column: this.column };
+      this.advance();
+      const escapedCharacter = this.peek();
+
+      if (escapedCharacter === null || escapedCharacter === '\r' || escapedCharacter === '\n') {
+        throw new UnterminatedStringError(start.line, start.column);
+      }
+
+      this.advance();
+      const decodedEscape = decodeEscape(escapedCharacter);
+
+      if (decodedEscape === null) {
+        throw new InvalidStringEscapeError(
+          escapedCharacter,
+          escape.line,
+          escape.column,
+        );
+      }
+
+      value += decodedEscape;
+    }
+
+    throw new UnterminatedStringError(start.line, start.column);
+  }
+
   advance() {
     if (this.isAtEnd) {
       return null;
@@ -112,5 +172,41 @@ export class UnterminatedCommentError extends SyntaxError {
     this.type = 'lexical';
     this.line = line;
     this.column = column;
+  }
+}
+
+export class UnterminatedStringError extends SyntaxError {
+  constructor(line, column) {
+    super(`Cadena sin cierre en línea ${line}, columna ${column}.`);
+    this.name = 'UnterminatedStringError';
+    this.type = 'lexical';
+    this.line = line;
+    this.column = column;
+  }
+}
+
+export class InvalidStringEscapeError extends SyntaxError {
+  constructor(escape, line, column) {
+    super(`Secuencia de escape no válida '\\${escape}' en línea ${line}, columna ${column}.`);
+    this.name = 'InvalidStringEscapeError';
+    this.type = 'lexical';
+    this.line = line;
+    this.column = column;
+    this.lexeme = `\\${escape}`;
+  }
+}
+
+function decodeEscape(character) {
+  switch (character) {
+    case '"':
+      return '"';
+    case '\\':
+      return '\\';
+    case 'n':
+      return '\n';
+    case 't':
+      return '\t';
+    default:
+      return null;
   }
 }
