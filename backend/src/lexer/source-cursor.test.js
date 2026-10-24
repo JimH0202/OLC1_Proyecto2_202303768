@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   InvalidStringEscapeError,
+  LexicalError,
   SourceCursor,
   UnterminatedCommentError,
   UnterminatedStringError,
+  UnknownCharacterError,
 } from './source-cursor.js';
 
 test('reads each character with its original index, line and column', () => {
@@ -145,6 +147,7 @@ test('reports an unterminated multiline comment at its opening position', () => 
       assert.equal(error.type, 'lexical');
       assert.equal(error.line, 2);
       assert.equal(error.column, 3);
+      assert.equal(error.lexeme, '/* no close');
       return true;
     },
   );
@@ -182,6 +185,7 @@ test('reports an unterminated string at its opening line and column', () => {
       assert.equal(error.type, 'lexical');
       assert.equal(error.line, 2);
       assert.equal(error.column, 3);
+      assert.equal(error.lexeme, '"unfinished');
       return true;
     },
   );
@@ -220,6 +224,59 @@ test('requires the cursor to be positioned at an opening quote', () => {
 
   assert.throws(() => cursor.readStringLiteral(), { name: 'TypeError' });
   assert.equal(cursor.index, 0);
+});
+
+test('reports an unknown character with its exact location and consumes it', () => {
+  const cursor = new SourceCursor(' \n  @ rest');
+
+  cursor.skipWhitespace();
+  assert.throws(
+    () => cursor.consumeUnknownCharacter(),
+    (error) => {
+      assert.ok(error instanceof UnknownCharacterError);
+      assert.ok(error instanceof LexicalError);
+      assert.equal(error.type, 'lexical');
+      assert.equal(error.message, 'Carácter no reconocido "@".');
+      assert.equal(error.line, 2);
+      assert.equal(error.column, 3);
+      assert.equal(error.lexeme, '@');
+      assert.deepEqual(error.toJSON(), {
+        type: 'lexical',
+        message: 'Carácter no reconocido "@".',
+        line: 2,
+        column: 3,
+        lexeme: '@',
+      });
+      return true;
+    },
+  );
+  assert.equal(cursor.peek(), ' ');
+});
+
+test('reports each kind of lexical error using the same JSON fields', () => {
+  const commentCursor = new SourceCursor('/*');
+  const stringCursor = new SourceCursor('"');
+
+  assert.throws(() => commentCursor.skipComment(), (error) => {
+    assert.deepEqual(Object.keys(error.toJSON()), [
+      'type', 'message', 'line', 'column', 'lexeme',
+    ]);
+    assert.equal(error.toJSON().type, 'lexical');
+    return true;
+  });
+  assert.throws(() => stringCursor.readStringLiteral(), (error) => {
+    assert.deepEqual(Object.keys(error.toJSON()), [
+      'type', 'message', 'line', 'column', 'lexeme',
+    ]);
+    assert.equal(error.toJSON().type, 'lexical');
+    return true;
+  });
+});
+
+test('does not try to consume an unknown character after end of input', () => {
+  const cursor = new SourceCursor('');
+
+  assert.throws(() => cursor.consumeUnknownCharacter(), { name: 'RangeError' });
 });
 
 test('rejects non-string source input', () => {

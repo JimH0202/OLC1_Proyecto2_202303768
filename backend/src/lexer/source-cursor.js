@@ -39,7 +39,11 @@ export class SourceCursor {
       return false;
     }
 
-    const start = { line: this.line, column: this.column };
+    const start = {
+      index: this.index,
+      line: this.line,
+      column: this.column,
+    };
     this.advance();
     const commentMarker = this.advance().character;
 
@@ -59,7 +63,11 @@ export class SourceCursor {
       this.advance();
     }
 
-    throw new UnterminatedCommentError(start.line, start.column);
+    throw new UnterminatedCommentError(
+      start.line,
+      start.column,
+      this.source.slice(start.index),
+    );
   }
 
   readStringLiteral() {
@@ -89,7 +97,11 @@ export class SourceCursor {
       }
 
       if (character === '\r' || character === '\n') {
-        throw new UnterminatedStringError(start.line, start.column);
+        throw new UnterminatedStringError(
+          start.line,
+          start.column,
+          this.source.slice(start.index, this.index),
+        );
       }
 
       if (character !== '\\') {
@@ -102,7 +114,11 @@ export class SourceCursor {
       const escapedCharacter = this.peek();
 
       if (escapedCharacter === null || escapedCharacter === '\r' || escapedCharacter === '\n') {
-        throw new UnterminatedStringError(start.line, start.column);
+        throw new UnterminatedStringError(
+          start.line,
+          start.column,
+          this.source.slice(start.index, this.index),
+        );
       }
 
       this.advance();
@@ -119,7 +135,24 @@ export class SourceCursor {
       value += decodedEscape;
     }
 
-    throw new UnterminatedStringError(start.line, start.column);
+    throw new UnterminatedStringError(
+      start.line,
+      start.column,
+      this.source.slice(start.index),
+    );
+  }
+
+  consumeUnknownCharacter() {
+    if (this.isAtEnd) {
+      throw new RangeError('No existe un carácter para reportar al final del archivo.');
+    }
+
+    const position = this.advance();
+    throw new UnknownCharacterError(
+      position.character,
+      position.line,
+      position.column,
+    );
   }
 
   advance() {
@@ -165,34 +198,66 @@ function isWhitespace(character) {
     || character === '\n';
 }
 
-export class UnterminatedCommentError extends SyntaxError {
-  constructor(line, column) {
-    super(`Comentario multilínea sin cierre en línea ${line}, columna ${column}.`);
+export class LexicalError extends SyntaxError {
+  constructor(message, line, column, lexeme) {
+    super(message);
+    this.type = 'lexical';
+    this.line = line;
+    this.column = column;
+    this.lexeme = lexeme;
+  }
+
+  toJSON() {
+    return {
+      type: this.type,
+      message: this.message,
+      line: this.line,
+      column: this.column,
+      lexeme: this.lexeme,
+    };
+  }
+}
+
+export class UnknownCharacterError extends LexicalError {
+  constructor(character, line, column) {
+    super(
+      `Carácter no reconocido ${JSON.stringify(character)}.`,
+      line,
+      column,
+      character,
+    );
+    this.name = 'UnknownCharacterError';
+  }
+}
+
+export class UnterminatedCommentError extends LexicalError {
+  constructor(line, column, lexeme) {
+    super(
+      `Comentario multilínea sin cierre en línea ${line}, columna ${column}.`,
+      line,
+      column,
+      lexeme,
+    );
     this.name = 'UnterminatedCommentError';
-    this.type = 'lexical';
-    this.line = line;
-    this.column = column;
   }
 }
 
-export class UnterminatedStringError extends SyntaxError {
-  constructor(line, column) {
-    super(`Cadena sin cierre en línea ${line}, columna ${column}.`);
+export class UnterminatedStringError extends LexicalError {
+  constructor(line, column, lexeme) {
+    super(`Cadena sin cierre en línea ${line}, columna ${column}.`, line, column, lexeme);
     this.name = 'UnterminatedStringError';
-    this.type = 'lexical';
-    this.line = line;
-    this.column = column;
   }
 }
 
-export class InvalidStringEscapeError extends SyntaxError {
+export class InvalidStringEscapeError extends LexicalError {
   constructor(escape, line, column) {
-    super(`Secuencia de escape no válida '\\${escape}' en línea ${line}, columna ${column}.`);
+    super(
+      `Secuencia de escape no válida '\\${escape}' en línea ${line}, columna ${column}.`,
+      line,
+      column,
+      `\\${escape}`,
+    );
     this.name = 'InvalidStringEscapeError';
-    this.type = 'lexical';
-    this.line = line;
-    this.column = column;
-    this.lexeme = `\\${escape}`;
   }
 }
 

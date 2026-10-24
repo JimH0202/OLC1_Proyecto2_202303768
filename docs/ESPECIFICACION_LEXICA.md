@@ -94,6 +94,9 @@ El lexer debe aplicar coincidencia más larga para operadores compuestos como `>
 - Una cadena sin comilla de cierre y cualquier carácter no reconocido producen un
   error léxico con línea y columna. Una secuencia de escape no soportada también
   produce un error léxico en la posición de la barra invertida.
+- Los errores léxicos exponen `type`, `message`, `line`, `column` y `lexeme`, y pueden
+  serializarse directamente como JSON. El carácter desconocido se consume al reportar
+  el error para que el escáner pueda continuar si posteriormente se agrega recuperación.
 - Al terminar el archivo, el lexer agrega el token sintético `EOF`, con lexema vacío
   y posición al final del archivo, para que el parser detecte el fin de entrada.
 
