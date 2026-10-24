@@ -52,85 +52,130 @@ Respuesta HTTP `200`:
 }
 ```
 
-### `POST /api/analyze`
+### `POST /api/connection-test`
 
-Realiza análisis léxico y sintáctico, y devuelve los tokens, el AST y los errores
-encontrados. No ejecuta el programa.
+Endpoint temporal de integración. Comprueba que el frontend puede enviar el código
+fuente como texto al backend y recibir JSON. No ejecuta lexer, parser ni intérprete.
 
-Respuesta:
+Solicitud:
+
+```json
+{
+  "source": "main { print(\"hola\"); }"
+}
+```
+
+Respuesta HTTP `200`:
 
 ```json
 {
   "success": true,
-  "tokens": [
-    {
-      "type": "SERVER",
-      "lexeme": "server",
-      "line": 1,
-      "column": 1
-    }
-  ],
-  "ast": {
-    "type": "Program",
-    "body": []
-  },
-  "errors": []
+  "received": true,
+  "sourceLength": 23,
+  "message": "El backend recibió el código fuente."
 }
 ```
 
-Si hay errores léxicos o sintácticos, `success` es `false`, los errores aparecen en
-`errors` y `ast` es `null` si no se pudo construir un AST completo. Los tokens
-reconocidos se devuelven aunque el análisis no tenga éxito.
+Cuando `source` no es una cadena, devuelve HTTP `400` con el formato de error de
+solicitud inválida definido arriba.
+
+### `POST /api/analyze`
+
+Realiza análisis léxico y sintáctico, y devuelve el resultado del análisis, los
+tokens, los errores y el AST. No ejecuta el programa. La respuesta utiliza el
+envoltorio común definido abajo; `execution` siempre será `null`.
+
+Respuesta cuando el análisis es exitoso:
+
+```json
+{
+  "success": true,
+  "analysis": {
+    "success": true,
+    "tokens": [
+      {
+        "type": "SERVER",
+        "lexeme": "server",
+        "line": 1,
+        "column": 1
+      }
+    ],
+    "errors": [],
+    "ast": {
+      "type": "Program",
+      "body": []
+    }
+  },
+  "execution": null
+}
+```
+
+Si hay errores léxicos o sintácticos, tanto `success` como `analysis.success` son
+`false`; se devuelven los tokens reconocidos y los errores encontrados. `ast` será
+`null` si el parser no pudo construir un árbol completo.
 
 ### `POST /api/execute`
 
 Realiza análisis léxico y sintáctico y, si estos finalizan correctamente, interpreta
-el AST en el entorno simulado.
+el AST en el entorno simulado. Usa la misma estructura de respuesta; `execution`
+contiene el resultado de la ejecución.
 
-Respuesta:
+Respuesta cuando el análisis y la ejecución son exitosos:
 
 ```json
 {
   "success": true,
-  "tokens": [],
-  "ast": {
-    "type": "Program",
-    "body": []
+  "analysis": {
+    "success": true,
+    "tokens": [],
+    "errors": [],
+    "ast": {
+      "type": "Program",
+      "body": []
+    }
   },
-  "errors": [],
-  "console": [],
-  "log": [],
-  "infrastructure": {
-    "servers": [],
-    "services": [],
-    "databases": []
+  "execution": {
+    "status": "completed",
+    "success": true,
+    "console": [],
+    "log": [],
+    "errors": [],
+    "infrastructure": {
+      "servers": [],
+      "services": [],
+      "databases": []
+    }
   }
 }
 ```
 
-Si el análisis léxico o sintáctico falla, la ejecución no comienza; `console`, `log`
-y las colecciones de infraestructura se devuelven vacíos. Los errores ocurridos
-durante la interpretación se informan con `type: "runtime"`.
+Si el análisis léxico o sintáctico falla, la ejecución no comienza. En ese caso
+`execution.status` es `"not_run"`, `execution.success` es `false` y sus colecciones
+de salida e infraestructura están vacías. `analysis.errors` conserva los errores que
+impidieron ejecutar.
 
 ## Formato de errores
 
-Cada error de análisis incluye fase, descripción y posición:
+Los errores se devuelven en el arreglo correspondiente a su fase. Cada elemento tiene
+la siguiente forma:
 
 ```json
 {
   "type": "lexical",
   "message": "Carácter no reconocido '@'.",
   "line": 1,
-  "column": 12
+  "column": 12,
+  "lexeme": "@"
 }
 ```
 
-`type` puede ser `lexical`, `syntactic` o `runtime`. Los errores léxicos y sintácticos
-incluyen línea y columna del código fuente. Los errores de ejecución incluyen esa
-ubicación cuando el nodo del AST la proporciona.
+- `analysis.errors` solo contiene errores `lexical` o `syntactic`.
+- `execution.errors` solo contiene errores `runtime`.
+- `line`, `column` y `lexeme` son opcionales cuando no existe una ubicación o lexema
+  asociado; cuando se informan, línea y columna empiezan en `1`.
 
-Los errores propios del lenguaje se devuelven en el arreglo `errors`; no se usan
-excepciones HTTP para representar errores de análisis o interpretación. Los errores
+Los errores propios del lenguaje no cambian el código HTTP de éxito del endpoint: se
+representan en JSON y hacen que el `success` superior sea `false`. Los errores
 inesperados del servidor usan HTTP `500` y una respuesta JSON genérica, sin exponer
 detalles internos:
 
@@ -152,6 +197,11 @@ errores semánticos o una tabla semántica de símbolos.
 - Todas las solicitudes y respuestas usan JSON en UTF-8.
 - Las posiciones de línea y columna empiezan en `1`.
 - El AST se serializa como JSON plano, sin referencias circulares ni métodos.
-- `success` es `true` cuando la operación solicitada finaliza sin errores; si hay
-  errores léxicos, sintácticos o de ejecución, es `false`.
+- Cada respuesta de análisis o ejecución incluye `success`, `analysis` y `execution`.
+- `analysis` contiene `success`, `tokens`, `errors` y `ast`.
+- `execution` es `null` en `/api/analyze`; en `/api/execute` contiene `status`,
+  `success`, `console`, `log`, `errors` e `infrastructure`.
+- El `success` superior es `true` solo si las fases aplicables a ese endpoint
+  finalizaron sin errores.
+- `execution.status` puede ser `completed`, `failed` o `not_run`.
 - La respuesta de análisis nunca ejecuta acciones del programa.

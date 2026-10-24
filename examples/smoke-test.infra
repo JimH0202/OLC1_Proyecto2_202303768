@@ -1,0 +1,11 @@
+server web {
+    cpu = 2;
+    memory = 4;
+    disk = 50;
+    os = "ubuntu";
+}
+
+main {
+    start(web);
+    print("AutoInfra listo");
+}

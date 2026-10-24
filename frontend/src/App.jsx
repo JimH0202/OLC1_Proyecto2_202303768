@@ -1,121 +1,92 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
 import './App.css'
 
+const initialSource = `server web {
+    cpu = 2;
+    memory = 4;
+    disk = 50;
+    os = "ubuntu";
+}
+
+main {
+    start(web);
+    print("AutoInfra listo");
+}`
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [source, setSource] = useState(initialSource)
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  async function testConnection() {
+    setLoading(true)
+    setResult(null)
+
+    try {
+      const response = await fetch('/api/connection-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source }),
+      })
+      const data = await response.json()
+      setResult({ httpStatus: response.status, ...data })
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'No se pudo contactar el backend.',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <main className="app">
+      <header className="app-header">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+          <p className="eyebrow">Prueba de conexión</p>
+          <h1>AutoInfra</h1>
+          <p className="subtitle">Frontend React conectado a la API Node.js</p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+        <span className="api-address">Backend · localhost:8080</span>
+      </header>
+
+      <section className="workspace" aria-label="Prueba de comunicación con la API">
+        <div className="editor-panel">
+          <div className="panel-heading">
+            <h2>Código de prueba</h2>
+            <span>AutoInfra</span>
+          </div>
+          <textarea
+            aria-label="Código fuente de prueba"
+            spellCheck="false"
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+          />
+          <button type="button" onClick={testConnection} disabled={loading}>
+            {loading ? 'Enviando…' : 'Enviar código al backend'}
+          </button>
+        </div>
+
+        <section className="response-panel" aria-live="polite">
+          <div className="panel-heading">
+            <h2>Respuesta JSON</h2>
+            {result && (
+              <span className={result.success ? 'status status-ok' : 'status status-error'}>
+                {result.success ? 'Conectado' : 'Error'}
+              </span>
+            )}
+          </div>
+          {result ? (
+            <pre>{JSON.stringify(result, null, 2)}</pre>
+          ) : (
+            <p className="empty-state">
+              Envía el código para verificar la comunicación entre frontend y backend.
+            </p>
+          )}
+        </section>
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    </main>
   )
 }
 

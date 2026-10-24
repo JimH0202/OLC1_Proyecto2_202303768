@@ -51,7 +51,14 @@ npm install
 
 ## Desarrollo
 
-La interfaz React se inicia con:
+Inicia el backend en una terminal:
+
+```bash
+cd backend
+npm run dev
+```
+
+Inicia el frontend en otra terminal:
 
 ```bash
 cd frontend
@@ -60,5 +67,7 @@ npm run dev
 
 El contrato acordado para el intercambio de código y resultados se encuentra en
 [docs/CONTRATO_API.md](./docs/CONTRATO_API.md). El backend usará JSON y define los
-endpoints `GET /api/health`, `POST /api/analyze` y `POST /api/execute`. El servidor se
-implementará en una etapa posterior.
+endpoints `GET /api/health`, `POST /api/analyze` y `POST /api/execute`. La pantalla
+inicial permite verificar el envío del código al endpoint temporal
+`POST /api/connection-test`; este prueba la comunicación HTTP y no analiza ni ejecuta
+el lenguaje.
