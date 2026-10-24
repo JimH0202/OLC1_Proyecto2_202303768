@@ -20,6 +20,7 @@ backend/
 frontend/
   src/
 examples/
+docs/
 ```
 
 ## Componentes
@@ -27,6 +28,7 @@ examples/
 - `backend/`: API y núcleo del lenguaje en JavaScript sobre Node.js.
 - `frontend/`: interfaz web para editar archivos `.infra` y consultar resultados.
 - `examples/`: programas AutoInfra de ejemplo y pruebas manuales.
+- `docs/`: documentación técnica del proyecto y contrato HTTP/JSON.
 
 ## Requisitos
 
@@ -56,5 +58,7 @@ cd frontend
 npm run dev
 ```
 
-El backend ya tiene sus dependencias de Express y CORS instaladas. Su servidor y
-comandos de ejecución se agregarán junto con la API en una etapa posterior.
+El contrato acordado para el intercambio de código y resultados se encuentra en
+[docs/CONTRATO_API.md](./docs/CONTRATO_API.md). El backend usará JSON y define los
+endpoints `GET /api/health`, `POST /api/analyze` y `POST /api/execute`. El servidor se
+implementará en una etapa posterior.
