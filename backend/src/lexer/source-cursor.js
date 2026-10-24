@@ -23,6 +23,17 @@ export class SourceCursor {
     return this.source[this.index + offset] ?? null;
   }
 
+  skipWhitespace() {
+    let skipped = 0;
+
+    while (isWhitespace(this.peek())) {
+      this.advance();
+      skipped += 1;
+    }
+
+    return skipped;
+  }
+
   advance() {
     if (this.isAtEnd) {
       return null;
@@ -55,4 +66,13 @@ export class SourceCursor {
 
     return position;
   }
+}
+
+function isWhitespace(character) {
+  return character === ' '
+    || character === '\t'
+    || character === '\v'
+    || character === '\f'
+    || character === '\r'
+    || character === '\n';
 }

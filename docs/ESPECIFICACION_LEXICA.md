@@ -6,8 +6,8 @@ escriben en mayúsculas. Las posiciones comienzan en `1`.
 
 Las definiciones de tipos y mapas de lexemas están en `backend/src/lexer/token-types.js`.
 La estructura serializable de cada token se define en `backend/src/lexer/token.js`.
-El recorrido carácter por carácter y el seguimiento de posición están en
-`backend/src/lexer/source-cursor.js`.
+El recorrido carácter por carácter, el seguimiento de posición y la omisión de
+espacios en blanco están en `backend/src/lexer/source-cursor.js`.
 
 ## Palabras reservadas
 
@@ -84,7 +84,9 @@ El lexer debe aplicar coincidencia más larga para operadores compuestos como `>
 
 ## Elementos ignorados y fin de entrada
 
-- Espacios, tabulaciones, retornos de carro y saltos de línea no producen tokens.
+- Espacios, tabulaciones, retornos verticales, avances de página, retornos de carro y
+  saltos de línea no producen tokens. El cursor omite estos caracteres sin perder la
+  posición del siguiente lexema.
 - Los comentarios `// ...` hasta el fin de línea y `/* ... */` se ignoran.
 - Un comentario multilínea sin cierre produce un error léxico con línea y columna de
   inicio.
