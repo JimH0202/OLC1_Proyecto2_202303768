@@ -34,6 +34,34 @@ export class SourceCursor {
     return skipped;
   }
 
+  skipComment() {
+    if (this.peek() !== '/' || (this.peek(1) !== '/' && this.peek(1) !== '*')) {
+      return false;
+    }
+
+    const start = { line: this.line, column: this.column };
+    this.advance();
+    const commentMarker = this.advance().character;
+
+    if (commentMarker === '/') {
+      while (!this.isAtEnd && this.peek() !== '\r' && this.peek() !== '\n') {
+        this.advance();
+      }
+      return true;
+    }
+
+    while (!this.isAtEnd) {
+      if (this.peek() === '*' && this.peek(1) === '/') {
+        this.advance();
+        this.advance();
+        return true;
+      }
+      this.advance();
+    }
+
+    throw new UnterminatedCommentError(start.line, start.column);
+  }
+
   advance() {
     if (this.isAtEnd) {
       return null;
@@ -75,4 +103,14 @@ function isWhitespace(character) {
     || character === '\f'
     || character === '\r'
     || character === '\n';
+}
+
+export class UnterminatedCommentError extends SyntaxError {
+  constructor(line, column) {
+    super(`Comentario multilínea sin cierre en línea ${line}, columna ${column}.`);
+    this.name = 'UnterminatedCommentError';
+    this.type = 'lexical';
+    this.line = line;
+    this.column = column;
+  }
 }

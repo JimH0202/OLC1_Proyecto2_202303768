@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SourceCursor } from './source-cursor.js';
+import { SourceCursor, UnterminatedCommentError } from './source-cursor.js';
 
 test('reads each character with its original index, line and column', () => {
   const cursor = new SourceCursor('ab\nc');
@@ -96,6 +96,62 @@ test('skips empty or trailing whitespace without moving past the source', () => 
   assert.equal(whitespaceCursor.isAtEnd, true);
   assert.equal(whitespaceCursor.line, 2);
   assert.equal(whitespaceCursor.column, 1);
+});
+
+test('skips a line comment and leaves its newline for whitespace tracking', () => {
+  const cursor = new SourceCursor('// comment\r\nserver');
+
+  assert.equal(cursor.skipComment(), true);
+  assert.equal(cursor.peek(), '\r');
+  assert.deepEqual(cursor.advance(), {
+    character: '\r',
+    index: 10,
+    line: 1,
+    column: 11,
+  });
+  assert.deepEqual(cursor.advance(), {
+    character: '\n',
+    index: 11,
+    line: 2,
+    column: 1,
+  });
+  assert.equal(cursor.peek(), 's');
+  assert.equal(cursor.line, 2);
+  assert.equal(cursor.column, 1);
+});
+
+test('skips a multiline comment while tracking lines and columns', () => {
+  const cursor = new SourceCursor('/* first\nsecond */server');
+
+  assert.equal(cursor.skipComment(), true);
+  assert.equal(cursor.peek(), 's');
+  assert.equal(cursor.line, 2);
+  assert.equal(cursor.column, 10);
+});
+
+test('reports an unterminated multiline comment at its opening position', () => {
+  const cursor = new SourceCursor(' \n  /* no close');
+
+  cursor.skipWhitespace();
+  assert.throws(
+    () => cursor.skipComment(),
+    (error) => {
+      assert.ok(error instanceof UnterminatedCommentError);
+      assert.equal(error.type, 'lexical');
+      assert.equal(error.line, 2);
+      assert.equal(error.column, 3);
+      return true;
+    },
+  );
+  assert.equal(cursor.isAtEnd, true);
+});
+
+test('does not consume a slash that does not begin a comment', () => {
+  const cursor = new SourceCursor('/ value');
+
+  assert.equal(cursor.skipComment(), false);
+  assert.equal(cursor.peek(), '/');
+  assert.equal(cursor.index, 0);
 });
 
 test('rejects non-string source input', () => {
