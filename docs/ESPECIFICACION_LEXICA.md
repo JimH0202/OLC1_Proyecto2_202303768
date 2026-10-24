@@ -6,6 +6,8 @@ escriben en mayúsculas. Las posiciones comienzan en `1`.
 
 Las definiciones de tipos y mapas de lexemas están en `backend/src/lexer/token-types.js`.
 La estructura serializable de cada token se define en `backend/src/lexer/token.js`.
+El recorrido carácter por carácter y el seguimiento de posición están en
+`backend/src/lexer/source-cursor.js`.
 
 ## Palabras reservadas
 
