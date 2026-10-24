@@ -28,5 +28,33 @@ examples/
 - `frontend/`: interfaz web para editar archivos `.infra` y consultar resultados.
 - `examples/`: programas AutoInfra de ejemplo y pruebas manuales.
 
-La configuración de los proyectos Node.js y las dependencias se agregarán en la
-siguiente etapa del trabajo.
+## Requisitos
+
+- Node.js 20.19 o superior.
+- npm.
+
+## Instalación
+
+```bash
+cd backend
+npm install
+```
+
+En otra terminal:
+
+```bash
+cd frontend
+npm install
+```
+
+## Desarrollo
+
+La interfaz React se inicia con:
+
+```bash
+cd frontend
+npm run dev
+```
+
+El backend ya tiene sus dependencias de Express y CORS instaladas. Su servidor y
+comandos de ejecución se agregarán junto con la API en una etapa posterior.
