@@ -40,9 +40,14 @@ export class Parser {
     const start = this.peek();
     const body = [];
 
-    while (!this.check(TokenType.EOF)) {
+    while (!this.check(TokenType.MAIN) && !this.check(TokenType.EOF)) {
       body.push(this.parseDeclaration());
     }
+
+    if (!this.match(TokenType.MAIN)) {
+      throw this.syntaxError('Se esperaba el único bloque main al final del programa.');
+    }
+    body.push(this.parseMainDeclaration(this.previous()));
 
     this.consume(TokenType.EOF, 'Se esperaba el fin del archivo.');
     return createNode('Program', start, { body });
@@ -60,9 +65,6 @@ export class Parser {
     }
     if (this.match(TokenType.TASK)) {
       return this.parseTaskDeclaration(this.previous());
-    }
-    if (this.match(TokenType.MAIN)) {
-      return this.parseMainDeclaration(this.previous());
     }
 
     throw this.syntaxError('Se esperaba una declaración.');

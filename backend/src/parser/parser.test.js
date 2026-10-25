@@ -35,6 +35,52 @@ test('parses the complete lexer catalog example', async () => {
   assert.equal(ast.body.length, 11);
 });
 
+test('requires one final main block after global declarations and resources', () => {
+  const { ast, errors } = parse(`
+    int count = 1;
+    server web { cpu = 2; }
+    function ready() bool { return true; }
+    task setup { run prepare; }
+    main { print(count); }
+  `);
+
+  assert.deepEqual(errors, []);
+  assert.deepEqual(ast.body.map(({ type }) => type), [
+    'VariableDeclaration',
+    'ResourceDeclaration',
+    'FunctionDeclaration',
+    'TaskDeclaration',
+    'MainDeclaration',
+  ]);
+});
+
+test('rejects a program without main', () => {
+  const { ast, errors } = parse('int count = 1;');
+
+  assert.equal(ast, null);
+  assert.equal(errors[0].type, 'syntactic');
+  assert.match(errors[0].message, /único bloque main/);
+  assert.equal(errors[0].lexeme, '');
+});
+
+test('rejects a second main block', () => {
+  const { ast, errors } = parse('main {} main {}');
+
+  assert.equal(ast, null);
+  assert.equal(errors[0].type, 'syntactic');
+  assert.equal(errors[0].lexeme, 'main');
+  assert.equal(errors[0].line, 1);
+});
+
+test('rejects declarations after the main block', () => {
+  const { ast, errors } = parse('main {} int count = 1;');
+
+  assert.equal(ast, null);
+  assert.equal(errors[0].type, 'syntactic');
+  assert.equal(errors[0].lexeme, 'int');
+  assert.match(errors[0].message, /fin del archivo/);
+});
+
 test('parses declarations, tasks, functions, arrays and control-flow statements', () => {
   const { ast, errors } = parse(`
     int count = 1;
@@ -67,6 +113,59 @@ test('preserves arithmetic precedence and left associativity in the AST', () => 
   assert.equal(expression.operator, '-');
   assert.equal(expression.left.operator, '+');
   assert.equal(expression.left.right.operator, '*');
+});
+
+test('parses every binary precedence level from logical OR to multiplication', () => {
+  const { ast, errors } = parse('main { result = a || b && c == d < e + f * g; }');
+  const logicalOr = ast.body[0].body.statements[0].value;
+  const logicalAnd = logicalOr.right;
+  const equality = logicalAnd.right;
+  const comparison = equality.right;
+  const addition = comparison.right;
+  const multiplication = addition.right;
+
+  assert.deepEqual(errors, []);
+  assert.equal(logicalOr.operator, '||');
+  assert.equal(logicalAnd.operator, '&&');
+  assert.equal(equality.operator, '==');
+  assert.equal(comparison.operator, '<');
+  assert.equal(addition.operator, '+');
+  assert.equal(multiplication.operator, '*');
+  assert.equal(multiplication.right.name, 'g');
+});
+
+test('associates operators at the same binary precedence level from left to right', () => {
+  const { ast, errors } = parse('main { result = a - b - c; }');
+  const expression = ast.body[0].body.statements[0].value;
+
+  assert.deepEqual(errors, []);
+  assert.equal(expression.operator, '-');
+  assert.equal(expression.left.operator, '-');
+  assert.equal(expression.right.name, 'c');
+});
+
+test('parses unary, grouping, array, call, index and property primary expressions', () => {
+  const { ast, errors } = parse(
+    'main { result = (factory([!ready, -2.5]))[0].status; }',
+  );
+  const member = ast.body[0].body.statements[0].value;
+  const index = member.object;
+  const call = index.object;
+  const grouping = call.callee;
+  const array = call.arguments[0];
+
+  assert.deepEqual(errors, []);
+  assert.equal(member.type, 'MemberExpression');
+  assert.equal(member.property, 'status');
+  assert.equal(index.type, 'IndexExpression');
+  assert.equal(index.index.value, 0);
+  assert.equal(call.type, 'CallExpression');
+  assert.equal(grouping.type, 'Identifier');
+  assert.equal(array.type, 'ArrayExpression');
+  assert.equal(array.elements[0].type, 'UnaryExpression');
+  assert.equal(array.elements[0].operator, '!');
+  assert.equal(array.elements[1].type, 'UnaryExpression');
+  assert.equal(array.elements[1].operand.value, 2.5);
 });
 
 test('accepts property and index assignment targets without semantic checks', () => {

@@ -9,16 +9,18 @@ no incluye análisis semántico.
 ```text
 backend/
   src/
-    api/
-    ast/
-    environment/
-    infrastructure/
-    interpreter/
+    api/          # Servidor HTTP y rutas
+    controllers/  # Controladores de solicitudes
+    models/       # Modelos de resultados
+    services/     # Casos de uso y análisis del lenguaje
     lexer/
     parser/
-    reports/
 frontend/
   src/
+    controllers/  # Estado y acciones de pantalla
+    models/       # Modelos de respuesta
+    services/     # Comunicación HTTP
+    views/        # Componentes de interfaz
 examples/
 docs/
 ```
@@ -29,6 +31,19 @@ docs/
 - `frontend/`: interfaz web para editar archivos `.infra` y consultar resultados.
 - `examples/`: programas AutoInfra de ejemplo y pruebas manuales.
 - `docs/`: documentación técnica del proyecto y contrato HTTP/JSON.
+
+## Organización MVC
+
+El backend separa el manejo HTTP de la lógica del lenguaje: las rutas de
+`backend/src/api/routes.js` delegan en controladores, los controladores usan el
+servicio de análisis y este combina lexer y parser para producir el modelo
+`AnalysisResult`. La configuración de Express está en `backend/src/app.js`; el
+arranque del servidor está aislado en `backend/src/api/server.js`.
+
+En el frontend se aplica una separación MVC adaptada a React: el hook controlador
+mantiene el estado y las acciones, el servicio realiza las solicitudes HTTP, el
+modelo representa la respuesta y la vista presenta la pantalla sin acceder
+directamente a la API.
 
 El inventario de tokens para implementar el lexer está en
 [docs/ESPECIFICACION_LEXICA.md](./docs/ESPECIFICACION_LEXICA.md).

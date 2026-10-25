@@ -20,13 +20,11 @@ acordado.
 ## Programas y declaraciones
 
 ```ebnf
-program                 = { declaration }, EOF ;
+program                 = { globalDeclaration | resourceDeclaration
+                            | functionDeclaration | taskDeclaration },
+                          mainDeclaration, EOF ;
 
-declaration             = variableDeclaration
-                        | resourceDeclaration
-                        | functionDeclaration
-                        | taskDeclaration
-                        | mainDeclaration ;
+globalDeclaration       = variableDeclaration ;
 
 variableDeclaration     = type, IDENTIFIER, [ ASSIGN, expression ], SEMICOLON ;
 
@@ -46,6 +44,11 @@ mainDeclaration        = MAIN, block ;
 type                    = primitiveType, { LEFT_BRACKET, RIGHT_BRACKET } ;
 primitiveType           = INT | FLOAT | STRING | BOOL ;
 ```
+
+Las declaraciones globales, los recursos, las funciones y las tareas pueden
+intercalarse antes de `main`; el orden entre esas categorías no se valida. El programa
+debe contener exactamente un `main`, y este debe ser la última construcción del
+archivo.
 
 La forma de una función incluye un tipo de retorno porque el inventario léxico no
 define `void` como palabra reservada. El parser no comprobará que el cuerpo devuelva
