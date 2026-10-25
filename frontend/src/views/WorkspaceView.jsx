@@ -56,7 +56,7 @@ export function WorkspaceView({
                 ref={fileInput}
                 className="visually-hidden"
                 type="file"
-                accept=".infra,text/plain"
+                accept=".infra"
                 aria-label="Seleccionar archivo AutoInfra"
                 onChange={handleFileChange}
               />

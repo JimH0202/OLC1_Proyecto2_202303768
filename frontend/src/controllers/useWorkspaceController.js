@@ -61,8 +61,10 @@ export function useWorkspaceController() {
     const link = document.createElement('a')
     link.href = downloadUrl
     link.download = fileName.endsWith('.infra') ? fileName : `${fileName}.infra`
+    document.body.append(link)
     link.click()
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0)
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
     setMessage(`Archivo guardado: ${link.download}`)
   }
 
