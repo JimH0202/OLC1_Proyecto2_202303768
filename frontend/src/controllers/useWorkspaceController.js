@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { executeProgram } from '../services/api-client.js'
+import { checkBackendHealth, executeProgram } from '../services/api-client.js'
 
 const initialSource = `server web {
     cpu = 2;
@@ -22,6 +22,8 @@ export function useWorkspaceController() {
   const [fileName, setFileName] = useState('demostracion.infra')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [connectionChecking, setConnectionChecking] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState('unknown')
   const [message, setMessage] = useState('')
 
   function updateSource(value) {
@@ -68,6 +70,25 @@ export function useWorkspaceController() {
     setMessage(`Archivo guardado: ${link.download}`)
   }
 
+  async function validateConnection() {
+    setConnectionChecking(true)
+    setConnectionStatus('checking')
+    setMessage('')
+
+    try {
+      await checkBackendHealth()
+      setConnectionStatus('connected')
+      setMessage('Conexión con el backend validada correctamente.')
+    } catch (error) {
+      setConnectionStatus('disconnected')
+      setMessage(error instanceof Error
+        ? `No se pudo conectar con el backend: ${error.message}`
+        : 'No se pudo conectar con el backend.')
+    } finally {
+      setConnectionChecking(false)
+    }
+  }
+
   async function runProgram() {
     setLoading(true)
     setResult(null)
@@ -89,11 +110,14 @@ export function useWorkspaceController() {
     fileName,
     result,
     loading,
+    connectionChecking,
+    connectionStatus,
     message,
     updateSource,
     createFile,
     openFile,
     saveFile,
+    validateConnection,
     runProgram,
   }
 }

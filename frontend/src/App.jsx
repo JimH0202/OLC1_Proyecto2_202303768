@@ -10,11 +10,14 @@ function App() {
       fileName={controller.fileName}
       result={controller.result}
       loading={controller.loading}
+      connectionChecking={controller.connectionChecking}
+      connectionStatus={controller.connectionStatus}
       message={controller.message}
       onSourceChange={controller.updateSource}
       onNew={controller.createFile}
       onOpen={controller.openFile}
       onSave={controller.saveFile}
+      onValidateConnection={controller.validateConnection}
       onRunProgram={controller.runProgram}
     />
   )

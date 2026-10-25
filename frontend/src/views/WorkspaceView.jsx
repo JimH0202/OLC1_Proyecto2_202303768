@@ -6,11 +6,14 @@ export function WorkspaceView({
   fileName,
   result,
   loading,
+  connectionChecking,
+  connectionStatus,
   message,
   onSourceChange,
   onNew,
   onOpen,
   onSave,
+  onValidateConnection,
   onRunProgram,
 }) {
   const fileInput = useRef(null)
@@ -36,7 +39,14 @@ export function WorkspaceView({
             <p className="subtitle">Escribe, analiza y simula infraestructura como código.</p>
           </div>
         </div>
-        <span className="api-address"><span className="online-indicator" /> Backend local</span>
+        <span className={`api-address connection-${connectionStatus}`}>
+          <span className="online-indicator" />
+          {connectionStatus === 'connected'
+            ? 'Backend conectado'
+            : connectionStatus === 'disconnected'
+              ? 'Backend sin conexión'
+              : connectionStatus === 'checking' ? 'Validando backend' : 'Backend local'}
+        </span>
       </header>
 
       <section className="workspace" aria-label="Editor AutoInfra">
@@ -61,15 +71,25 @@ export function WorkspaceView({
                 onChange={handleFileChange}
               />
             </div>
-            <button
-              type="button"
-              className="run-button"
-              onClick={onRunProgram}
-              disabled={loading}
-            >
-              <span aria-hidden="true">{loading ? '…' : '▶'}</span>
-              {loading ? 'Ejecutando' : 'Ejecutar'}
-            </button>
+            <div className="primary-actions">
+              <button
+                type="button"
+                className="button-secondary connection-button"
+                onClick={onValidateConnection}
+                disabled={connectionChecking}
+              >
+                {connectionChecking ? 'Validando…' : 'Validar conexión'}
+              </button>
+              <button
+                type="button"
+                className="run-button"
+                onClick={onRunProgram}
+                disabled={loading}
+              >
+                <span aria-hidden="true">{loading ? '…' : '▶'}</span>
+                {loading ? 'Ejecutando' : 'Ejecutar'}
+              </button>
+            </div>
           </div>
 
           <div className="editor-titlebar">
@@ -176,15 +196,24 @@ export function WorkspaceView({
               <ul className="error-list">
                 {errors.map((error, index) => (
                   <li key={`${error.type}-${error.line}-${error.column}-${index}`}>
-                    <span className="error-type">{error.type}</span>
-                    <div>
-                      <p>{error.message}</p>
-                      {error.line && (
-                        <span className="error-location">
-                          Línea {error.line}, columna {error.column}
-                        </span>
-                      )}
-                    </div>
+                    <dl className="error-details">
+                      <div>
+                        <dt>Tipo</dt>
+                        <dd><span className="error-type">{error.type ?? 'desconocido'}</span></dd>
+                      </div>
+                      <div className="error-description">
+                        <dt>Descripción</dt>
+                        <dd>{error.message}</dd>
+                      </div>
+                      <div>
+                        <dt>Línea</dt>
+                        <dd>{error.line ?? 'No disponible'}</dd>
+                      </div>
+                      <div>
+                        <dt>Columna</dt>
+                        <dd>{error.column ?? 'No disponible'}</dd>
+                      </div>
+                    </dl>
                   </li>
                 ))}
               </ul>
