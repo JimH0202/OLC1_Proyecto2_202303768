@@ -1,5 +1,70 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import '../App.css'
+
+function AstTreeNode({ label, value, depth = 0 }) {
+  if (Array.isArray(value)) {
+    return (
+      <li className="ast-tree-item">
+        <details open={depth < 2}>
+          <summary>
+            <span className="ast-field-name">{label}</span>
+            <span className="ast-node-count">{value.length} elemento(s)</span>
+          </summary>
+          <ul className="ast-tree-children">
+            {value.map((item, index) => (
+              <AstTreeNode key={`${label}-${index}`} label={`[${index}]`} value={item} depth={depth + 1} />
+            ))}
+          </ul>
+        </details>
+      </li>
+    )
+  }
+
+  if (value !== null && typeof value === 'object') {
+    const childEntries = Object.entries(value)
+      .filter(([key]) => key !== 'type' && key !== 'line' && key !== 'column')
+    const hasChildren = childEntries.length > 0
+
+    return (
+      <li className="ast-tree-item">
+        <details open={depth < 2}>
+          <summary>
+            {value.type
+              ? <span className="ast-node-type">{value.type}</span>
+              : <span className="ast-field-name">{label}</span>}
+            {value.type && label !== 'root' && <span className="ast-field-name">{label}</span>}
+            {Number.isInteger(value.line) && Number.isInteger(value.column) && (
+              <span className="ast-node-location">{value.line}:{value.column}</span>
+            )}
+          </summary>
+          {hasChildren ? (
+            <ul className="ast-tree-children">
+              {childEntries.map(([key, child]) => (
+                <AstTreeNode key={key} label={key} value={child} depth={depth + 1} />
+              ))}
+            </ul>
+          ) : (
+            <ul className="ast-tree-children">
+              {childEntries.map(([key, child]) => (
+                <li className="ast-tree-value" key={key}>
+                  <span className="ast-field-name">{key}</span>
+                  <code>{JSON.stringify(child)}</code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </details>
+      </li>
+    )
+  }
+
+  return (
+    <li className="ast-tree-value">
+      <span className="ast-field-name">{label}</span>
+      <code>{JSON.stringify(value)}</code>
+    </li>
+  )
+}
 
 export function WorkspaceView({
   source,
@@ -17,6 +82,7 @@ export function WorkspaceView({
   onRunProgram,
 }) {
   const fileInput = useRef(null)
+  const [astView, setAstView] = useState('tree')
   const analysis = result?.analysis
   const execution = result?.execution
   const analysisErrors = analysis?.errors ?? []
@@ -256,10 +322,35 @@ export function WorkspaceView({
           <section className="result-panel ast-panel" aria-label="Árbol de sintaxis abstracta">
             <div className="result-panel-heading">
               <h3>Árbol de sintaxis (AST)</h3>
-              {analysis?.ast && <span>JSON</span>}
+              {analysis?.ast && (
+                <div className="ast-view-switch" aria-label="Vista del AST">
+                  <button
+                    type="button"
+                    className={astView === 'tree' ? 'active' : ''}
+                    aria-pressed={astView === 'tree'}
+                    onClick={() => setAstView('tree')}
+                  >
+                    Árbol
+                  </button>
+                  <button
+                    type="button"
+                    className={astView === 'json' ? 'active' : ''}
+                    aria-pressed={astView === 'json'}
+                    onClick={() => setAstView('json')}
+                  >
+                    JSON
+                  </button>
+                </div>
+              )}
             </div>
             {analysis?.ast ? (
-              <pre className="ast-output">{JSON.stringify(analysis.ast, null, 2)}</pre>
+              astView === 'tree' ? (
+                <ul className="ast-tree" aria-label="Estructura gráfica del AST">
+                  <AstTreeNode label="root" value={analysis.ast} />
+                </ul>
+              ) : (
+                <pre className="ast-output">{JSON.stringify(analysis.ast, null, 2)}</pre>
+              )
             ) : (
               <p className="result-empty">
                 {analysis ? 'No se pudo construir el AST por errores de análisis.' : 'El AST aparecerá aquí después del análisis.'}

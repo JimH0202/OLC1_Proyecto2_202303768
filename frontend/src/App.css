@@ -538,6 +538,134 @@
   max-height: 480px;
 }
 
+.ast-view-switch {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #e2e9e3;
+  border-radius: 7px;
+  background: #f7faf7;
+}
+
+.ast-view-switch button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #66766b;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ast-view-switch button.active {
+  background: #fff;
+  color: #216443;
+  box-shadow: 0 1px 3px rgb(36 60 43 / 12%);
+}
+
+.ast-tree {
+  max-height: 560px;
+  overflow: auto;
+  margin: 0;
+  padding: 14px 18px;
+  background: #fbfcfb;
+  color: #304438;
+  font-size: 11px;
+  list-style: none;
+}
+
+.ast-tree-children {
+  display: grid;
+  gap: 5px;
+  margin: 5px 0 5px 10px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid #dce7de;
+  list-style: none;
+}
+
+.ast-tree-item {
+  min-width: 0;
+}
+
+.ast-tree-item details {
+  min-width: 0;
+}
+
+.ast-tree-item summary {
+  display: flex;
+  min-height: 25px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ast-tree-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.ast-tree-item summary::before {
+  width: 12px;
+  flex: 0 0 12px;
+  color: #89988d;
+  content: '+';
+  font-family: var(--mono);
+  text-align: center;
+}
+
+.ast-tree-item details[open] > summary::before {
+  content: '−';
+}
+
+.ast-tree-item summary:hover {
+  background: #eef5ef;
+}
+
+.ast-node-type {
+  padding: 3px 6px;
+  border: 1px solid #cfe1d2;
+  border-radius: 5px;
+  background: #edf6ef;
+  color: #216443;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ast-field-name {
+  color: #53675a;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ast-node-location,
+.ast-node-count {
+  margin-left: auto;
+  color: #89958c;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.ast-tree-value {
+  display: flex;
+  min-height: 23px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+}
+
+.ast-tree-value code {
+  color: #784e27;
+  font-family: var(--mono);
+  font-size: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 760px) {
   .app {
     width: min(100% - 28px, 620px);
