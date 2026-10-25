@@ -1,18 +1,24 @@
 import { useRef, useState } from 'react'
 import '../App.css'
 
-function AstTreeNode({ label, value, depth = 0 }) {
+function AstTreeNode({ label, value, depth = 0, expanded }) {
   if (Array.isArray(value)) {
     return (
       <li className="ast-tree-item">
-        <details open={depth < 2}>
+        <details open={expanded}>
           <summary>
             <span className="ast-field-name">{label}</span>
             <span className="ast-node-count">{value.length} elemento(s)</span>
           </summary>
           <ul className="ast-tree-children">
             {value.map((item, index) => (
-              <AstTreeNode key={`${label}-${index}`} label={`[${index}]`} value={item} depth={depth + 1} />
+              <AstTreeNode
+                key={`${label}-${index}`}
+                label={`[${index}]`}
+                value={item}
+                depth={depth + 1}
+                expanded={expanded}
+              />
             ))}
           </ul>
         </details>
@@ -27,7 +33,7 @@ function AstTreeNode({ label, value, depth = 0 }) {
 
     return (
       <li className="ast-tree-item">
-        <details open={depth < 2}>
+        <details open={expanded}>
           <summary>
             {value.type
               ? <span className="ast-node-type">{value.type}</span>
@@ -40,7 +46,13 @@ function AstTreeNode({ label, value, depth = 0 }) {
           {hasChildren ? (
             <ul className="ast-tree-children">
               {childEntries.map(([key, child]) => (
-                <AstTreeNode key={key} label={key} value={child} depth={depth + 1} />
+                <AstTreeNode
+                  key={key}
+                  label={key}
+                  value={child}
+                  depth={depth + 1}
+                  expanded={expanded}
+                />
               ))}
             </ul>
           ) : (
@@ -83,6 +95,7 @@ export function WorkspaceView({
 }) {
   const fileInput = useRef(null)
   const [astView, setAstView] = useState('tree')
+  const [astExpanded, setAstExpanded] = useState(false)
   const analysis = result?.analysis
   const execution = result?.execution
   const analysisErrors = analysis?.errors ?? []
@@ -211,30 +224,41 @@ export function WorkspaceView({
                 {execution ? 'El programa no generó salida.' : 'Ejecuta el programa para ver la salida.'}
               </p>
             )}
-            {execution?.log?.length > 0 && (
+            {execution && (
               <div className="action-log">
                 <h4>Bitácora de acciones</h4>
-                <ol>
-                  {execution.log.map((entry, index) => (
-                    <li key={`${entry.action}-${entry.resource}-${index}`}>
-                      <code>{entry.action}</code>
-                      <span>{entry.resource}</span>
-                      {entry.value !== undefined && <span className="log-value">{String(entry.value)}</span>}
-                    </li>
-                  ))}
-                </ol>
+                {execution.log.length > 0 ? (
+                  <ol>
+                    {execution.log.map((entry, index) => (
+                      <li key={`${entry.action}-${entry.resource}-${index}`}>
+                        <code>{entry.action}</code>
+                        <span>{entry.resource}</span>
+                        {entry.value !== undefined && (
+                          <span className="log-value">{String(entry.value)}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="result-empty">No se registraron acciones.</p>
+                )}
               </div>
             )}
-            {execution?.infrastructure && (
+            {execution && (
               <div className="simulated-state">
-                <h4>Estado simulado</h4>
+                <h4>Estado final de los recursos</h4>
                 <div className="resource-list">
                   {Object.entries(execution.infrastructure).flatMap(([kind, resources]) => (
                     resources.map((resource) => (
                       <div className="resource-card" key={`${kind}-${resource.name}`}>
-                        <span className="resource-kind">{kind.slice(0, -1)}</span>
+                        <span className="resource-kind">{resource.kind}</span>
                         <strong>{resource.name}</strong>
-                        <code>{resource.state.status}</code>
+                        <div className="resource-details">
+                          <span>Propiedades</span>
+                          <pre>{JSON.stringify(resource.properties, null, 2)}</pre>
+                          <span>Estado</span>
+                          <pre>{JSON.stringify(resource.state, null, 2)}</pre>
+                        </div>
                       </div>
                     ))
                   ))}
@@ -321,7 +345,18 @@ export function WorkspaceView({
 
           <section className="result-panel ast-panel" aria-label="Árbol de sintaxis abstracta">
             <div className="result-panel-heading">
-              <h3>Árbol de sintaxis (AST)</h3>
+              <div className="ast-heading-title">
+                <h3>Árbol de sintaxis (AST)</h3>
+                {analysis?.ast && astView === 'tree' && (
+                  <button
+                    type="button"
+                    className="ast-expand-toggle"
+                    onClick={() => setAstExpanded(!astExpanded)}
+                  >
+                    {astExpanded ? 'Contraer todo' : 'Expandir todo'}
+                  </button>
+                )}
+              </div>
               {analysis?.ast && (
                 <div className="ast-view-switch" aria-label="Vista del AST">
                   <button
@@ -346,7 +381,7 @@ export function WorkspaceView({
             {analysis?.ast ? (
               astView === 'tree' ? (
                 <ul className="ast-tree" aria-label="Estructura gráfica del AST">
-                  <AstTreeNode label="root" value={analysis.ast} />
+                  <AstTreeNode label="root" value={analysis.ast} expanded={astExpanded} />
                 </ul>
               ) : (
                 <pre className="ast-output">{JSON.stringify(analysis.ast, null, 2)}</pre>

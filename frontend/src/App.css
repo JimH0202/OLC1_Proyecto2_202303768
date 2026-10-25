@@ -406,7 +406,8 @@
 
 .resource-card {
   display: grid;
-  min-width: 130px;
+  min-width: min(100%, 240px);
+  max-width: 100%;
   gap: 5px;
   padding: 10px;
   border: 1px solid #e2e9e3;
@@ -418,6 +419,33 @@
 .resource-card code {
   color: #5f7465;
   font-size: 10px;
+}
+
+.resource-details {
+  display: grid;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.resource-details > span {
+  color: #78867c;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.resource-details pre {
+  overflow: auto;
+  max-width: 100%;
+  margin: 0 0 5px;
+  padding: 7px;
+  border-radius: 5px;
+  background: #f2f6f3;
+  color: #405348;
+  font: 10px/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .resource-kind {
@@ -545,6 +573,29 @@
   border: 1px solid #e2e9e3;
   border-radius: 7px;
   background: #f7faf7;
+}
+
+.ast-heading-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ast-expand-toggle {
+  padding: 5px 8px;
+  border: 1px solid #d4e3d7;
+  border-radius: 6px;
+  background: #f3f8f4;
+  color: #286442;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ast-expand-toggle:hover {
+  border-color: #a9c8b0;
+  background: #eaf4ec;
 }
 
 .ast-view-switch button {
