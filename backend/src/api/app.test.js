@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test, { after, before } from 'node:test';
 import { app } from '../app.js';
 
@@ -175,6 +176,32 @@ test('execute route returns console, action log and grouped simulated infrastruc
     status: 'deployed',
     deployedTo: 'web',
   });
+  assert.deepEqual(result.execution.infrastructure.databases, []);
+});
+
+test('executes the demonstration example through the API using only simulated state', async () => {
+  const source = await readFile(
+    new URL('../../../examples/smoke-test.infra', import.meta.url),
+    'utf8',
+  );
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, true);
+  assert.equal(result.execution.status, 'completed');
+  assert.deepEqual(result.execution.console, ['AutoInfra listo']);
+  assert.deepEqual(result.execution.log, [
+    { action: 'start', resource: 'web' },
+  ]);
+  assert.deepEqual(result.execution.infrastructure.servers[0].state, {
+    status: 'running',
+  });
+  assert.deepEqual(result.execution.infrastructure.services, []);
   assert.deepEqual(result.execution.infrastructure.databases, []);
 });
 

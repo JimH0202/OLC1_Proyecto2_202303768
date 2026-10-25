@@ -68,9 +68,11 @@ se simulan en memoria. Las firmas incluidas son `start(recurso)`, `stop(recurso)
 `print(...)` y `length(cadena_o_arreglo)`. `print` escribe en la consola simulada y
 las acciones sobre recursos actualizan su estado e historial. No se aplican las
 restricciones excluidas de despliegue/instalación según estado ni un mínimo de
-réplicas. `POST /api/execute` devuelve la consola, la bitácora, errores de ejecución
-y el estado de la infraestructura simulada; la interfaz permite ejecutar el ejemplo
-y consultar la respuesta JSON.
+réplicas; las acciones repetidas no se deduplican ni generan advertencias al iniciar
+un recurso ya activo. `POST /api/execute` devuelve la consola, la bitácora, errores de
+ejecución y el estado de la infraestructura simulada; la interfaz permite ejecutar
+el ejemplo y consultar la respuesta JSON. El intérprete no configura máximos propios
+de instrucciones ejecutadas ni de profundidad de llamadas.
 
 ## Requisitos
 

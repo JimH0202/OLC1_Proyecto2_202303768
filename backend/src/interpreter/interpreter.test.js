@@ -155,6 +155,43 @@ test('simulates install, deploy and scale without excluded domain restrictions',
   ]);
 });
 
+test('does not deduplicate repeated actions or warn when starting an active resource', () => {
+  const result = interpret(`
+    server web {}
+    service api {}
+    bool firstStart = false;
+    bool secondStart = false;
+    main {
+      firstStart = start(web);
+      secondStart = start(web);
+      install(web, "nginx");
+      install(web, "nginx");
+      deploy(api, web);
+      deploy(api, web);
+      scale(api, 0);
+      scale(api, 0);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('firstStart'), true);
+  assert.equal(result.environment.getVariable('secondStart'), true);
+  assert.deepEqual(result.console, []);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.resources[0].state.installed, ['nginx', 'nginx']);
+  assert.equal(result.resources[1].state.replicas, 0);
+  assert.deepEqual(result.log, [
+    { action: 'start', resource: 'web' },
+    { action: 'start', resource: 'web' },
+    { action: 'install', resource: 'web', value: 'nginx' },
+    { action: 'install', resource: 'web', value: 'nginx' },
+    { action: 'deploy', resource: 'api', value: 'web' },
+    { action: 'deploy', resource: 'api', value: 'web' },
+    { action: 'scale', resource: 'api', value: 0 },
+    { action: 'scale', resource: 'api', value: 0 },
+  ]);
+});
+
 test('prints values to the simulated console and evaluates length for strings and arrays', () => {
   const result = interpret(`
     int textLength = length("AutoInfra");
@@ -290,6 +327,20 @@ test('executes conditional and loop nodes while preserving their AST order', () 
 
   assert.equal(result.success, true);
   assert.equal(result.environment.getVariable('total'), 4);
+});
+
+test('executes more than 100000 loop iterations without an instruction cap', () => {
+  const result = interpret(`
+    int iterations = 0;
+    main {
+      for (int index = 0; index < 100001; index = index + 1) {
+        iterations = iterations + 1;
+      }
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('iterations'), 100001);
 });
 
 test('executes the selected if and else branch', () => {
