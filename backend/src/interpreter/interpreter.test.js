@@ -29,6 +29,9 @@ test('walks the program AST and initializes global variables and resources in me
       cpu: 4,
       os: 'linux',
     },
+    state: {
+      status: 'stopped',
+    },
   }]);
 });
 
@@ -75,6 +78,9 @@ test('executes resource property reads and assignments in simulated memory', () 
     kind: 'server',
     name: 'web',
     properties: { cpu: 4 },
+    state: {
+      status: 'stopped',
+    },
   }]);
 });
 

@@ -1,3 +1,5 @@
+import { InfrastructureResource } from '../infrastructure/resource.js';
+
 export class RuntimeEnvironmentError extends Error {
   constructor(message) {
     super(message);
@@ -49,18 +51,18 @@ export class Environment {
   }
 
   defineResource({ kind, name, properties }) {
-    if (typeof kind !== 'string' || typeof name !== 'string' || !Array.isArray(properties)) {
-      throw new TypeError('El recurso requiere tipo, nombre y una lista de propiedades.');
+    if (!Array.isArray(properties)) {
+      throw new TypeError('Las propiedades del recurso deben ser una lista.');
     }
 
-    const resource = {
+    const resource = new InfrastructureResource({
       kind,
       name,
       properties: Object.fromEntries(properties.map(({ name: propertyName, value }) => [
         propertyName,
         value,
       ])),
-    };
+    });
     this.state.resources.set(name, resource);
     return resource;
   }
@@ -74,10 +76,6 @@ export class Environment {
   }
 
   listResources() {
-    return [...this.state.resources.values()].map(({ kind, name, properties }) => ({
-      kind,
-      name,
-      properties: { ...properties },
-    }));
+    return [...this.state.resources.values()].map((resource) => resource.toJSON());
   }
 }

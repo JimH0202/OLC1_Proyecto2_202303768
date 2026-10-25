@@ -64,12 +64,15 @@ test('stores simulated resources and their properties in shared memory', () => {
 
   child.defineResource(server);
 
-  assert.deepEqual(environment.getResource('web'), {
+  assert.deepEqual(environment.getResource('web').toJSON(), {
     kind: 'server',
     name: 'web',
     properties: {
       cpu: 2,
       os: 'ubuntu',
+    },
+    state: {
+      status: 'stopped',
     },
   });
   assert.deepEqual(environment.listResources(), [{
@@ -78,6 +81,9 @@ test('stores simulated resources and their properties in shared memory', () => {
     properties: {
       cpu: 2,
       os: 'ubuntu',
+    },
+    state: {
+      status: 'stopped',
     },
   }]);
 });
@@ -107,4 +113,20 @@ test('does not expose the internal resource map through resource listings', () =
   listedResources[0].properties.engine = 'changed';
 
   assert.equal(environment.getResource('db').properties.engine, 'postgres');
+});
+
+test('lists simulated state without exposing the mutable internal state object', () => {
+  const environment = new Environment();
+  const resource = environment.defineResource({
+    kind: 'service',
+    name: 'api',
+    properties: [],
+  });
+  resource.state.status = 'running';
+
+  const listedResource = environment.listResources()[0];
+  assert.equal(listedResource.state.status, 'running');
+  listedResource.state.status = 'changed';
+
+  assert.equal(environment.getResource('api').state.status, 'running');
 });

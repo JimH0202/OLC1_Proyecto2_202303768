@@ -58,6 +58,9 @@ El parser construye nodos JSON mediante la fábrica y catálogo de
 El entorno de ejecución en memoria está en `backend/src/environment/environment.js`.
 Mantiene valores de variables por ámbito y un registro de recursos simulado compartido
 entre ámbitos; no se conecta ni modifica servicios externos.
+Los recursos `server`, `service` y `database` se representan en
+`backend/src/infrastructure/resource.js`, con sus propiedades configuradas y estado
+simulado inicial `stopped`.
 El recorrido e interpretación del AST está en
 `backend/src/interpreter/interpreter.js`; las acciones nativas de infraestructura
 quedan para sus pasos posteriores de implementación.
