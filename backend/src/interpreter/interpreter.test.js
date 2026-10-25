@@ -186,6 +186,71 @@ test('executes conditional and loop nodes while preserving their AST order', () 
   assert.equal(result.environment.getVariable('total'), 4);
 });
 
+test('executes the selected if and else branch', () => {
+  const result = interpret(`
+    int result = 0;
+    main {
+      if (true) { result = 1; } else { result = 2; }
+      if (false) { result = 3; } else { result = result + 4; }
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('result'), 5);
+});
+
+test('executes while iterations and continues by reevaluating the condition', () => {
+  const result = interpret(`
+    int index = 0;
+    int total = 0;
+    main {
+      while (index < 5) {
+        index = index + 1;
+        if (index == 3) { continue; }
+        total = total + index;
+      }
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('index'), 5);
+  assert.equal(result.environment.getVariable('total'), 12);
+});
+
+test('executes the for update clause after continue', () => {
+  const result = interpret(`
+    int total = 0;
+    main {
+      for (int index = 0; index < 5; index = index + 1) {
+        if (index < 3) { continue; }
+        total = total + index;
+      }
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('total'), 7);
+});
+
+test('break exits only the innermost nested loop', () => {
+  const result = interpret(`
+    int total = 0;
+    main {
+      for (int outer = 0; outer < 3; outer = outer + 1) {
+        int inner = 0;
+        while (inner < 5) {
+          inner = inner + 1;
+          if (inner == 2) { break; }
+        }
+        total = total + inner;
+      }
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('total'), 6);
+});
+
 test('uses the supplied in-memory environment', () => {
   const environment = new Environment();
   environment.defineVariable('initial', 6);
