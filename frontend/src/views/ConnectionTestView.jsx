@@ -6,6 +6,7 @@ export function ConnectionTestView({
   result,
   loading,
   onTestConnection,
+  onRunProgram,
 }) {
   return (
     <main className="app">
@@ -30,9 +31,14 @@ export function ConnectionTestView({
             value={source}
             onChange={(event) => onSourceChange(event.target.value)}
           />
-          <button type="button" onClick={onTestConnection} disabled={loading}>
-            {loading ? 'Enviando…' : 'Enviar código al backend'}
-          </button>
+          <div className="editor-actions">
+            <button type="button" onClick={onTestConnection} disabled={loading}>
+              Probar conexión
+            </button>
+            <button type="button" onClick={onRunProgram} disabled={loading}>
+              {loading ? 'Procesando…' : 'Ejecutar programa'}
+            </button>
+          </div>
         </div>
 
         <section className="response-panel" aria-live="polite">
@@ -48,7 +54,7 @@ export function ConnectionTestView({
             <pre>{JSON.stringify(result, null, 2)}</pre>
           ) : (
             <p className="empty-state">
-              Envía el código para verificar la comunicación entre frontend y backend.
+              Prueba la conexión o ejecuta el programa para ver la respuesta del backend.
             </p>
           )}
         </section>

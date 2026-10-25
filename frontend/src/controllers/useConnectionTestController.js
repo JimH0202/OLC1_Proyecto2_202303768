@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ConnectionTestResponse } from '../models/connection-test-response.js'
-import { sendConnectionTest } from '../services/api-client.js'
+import { executeProgram, sendConnectionTest } from '../services/api-client.js'
 
 const initialSource = `server web {
     cpu = 2;
@@ -32,11 +32,25 @@ export function useConnectionTestController() {
     }
   }
 
+  async function runProgram() {
+    setLoading(true)
+    setResult(null)
+
+    try {
+      setResult(await executeProgram(source))
+    } catch (error) {
+      setResult(ConnectionTestResponse.fromError(error))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     source,
     setSource,
     result,
     loading,
     testConnection,
+    runProgram,
   }
 }

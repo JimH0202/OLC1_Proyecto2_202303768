@@ -11,6 +11,7 @@ function App() {
       result={controller.result}
       loading={controller.loading}
       onTestConnection={controller.testConnection}
+      onRunProgram={controller.runProgram}
     />
   )
 }

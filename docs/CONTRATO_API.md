@@ -149,10 +149,19 @@ Respuesta cuando el análisis y la ejecución son exitosos:
 }
 ```
 
+`console` contiene las líneas producidas por `print`. `log` es una lista de acciones
+simuladas, cada una con `action`, `resource` y, cuando aplica, `value`.
+`infrastructure` agrupa los recursos por `servers`, `services` y `databases`, e
+incluye sus propiedades y estado simulado actual.
+
 Si el análisis léxico o sintáctico falla, la ejecución no comienza. En ese caso
 `execution.status` es `"not_run"`, `execution.success` es `false` y sus colecciones
 de salida e infraestructura están vacías. `analysis.errors` conserva los errores que
 impidieron ejecutar.
+
+Si ocurre un error de ejecución después de generar salida o modificar recursos, la
+respuesta conserva la consola, bitácora y estado simulado alcanzados antes del error;
+`execution.status` será `"failed"` y `execution.errors` contendrá el error.
 
 ## Formato de errores
 

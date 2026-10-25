@@ -141,6 +141,105 @@ test('analyze route returns lexical errors before invoking the parser', async ()
   assert.equal(result.execution, null);
 });
 
+test('execute route returns console, action log and grouped simulated infrastructure', async () => {
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: `
+        server web {}
+        service api {}
+        main {
+          start(web);
+          deploy(api, web);
+          print("ready", length([1, 2]));
+        }
+      `,
+    }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, true);
+  assert.equal(result.analysis.success, true);
+  assert.equal(result.execution.status, 'completed');
+  assert.deepEqual(result.execution.console, ['ready 2']);
+  assert.deepEqual(result.execution.log, [
+    { action: 'start', resource: 'web' },
+    { action: 'deploy', resource: 'api', value: 'web' },
+  ]);
+  assert.deepEqual(result.execution.infrastructure.servers[0].state, {
+    status: 'running',
+  });
+  assert.deepEqual(result.execution.infrastructure.services[0].state, {
+    status: 'deployed',
+    deployedTo: 'web',
+  });
+  assert.deepEqual(result.execution.infrastructure.databases, []);
+});
+
+test('execute route skips execution when source has syntax errors', async () => {
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'main { print(; }' }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, false);
+  assert.equal(result.analysis.success, false);
+  assert.equal(result.analysis.errors[0].type, 'syntactic');
+  assert.deepEqual(result.execution, {
+    status: 'not_run',
+    success: false,
+    console: [],
+    log: [],
+    errors: [],
+    infrastructure: {
+      servers: [],
+      services: [],
+      databases: [],
+    },
+  });
+});
+
+test('execute route returns runtime failures and keeps output already produced', async () => {
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'server web {}\nmain { start(web); print("started"); missing(); }',
+    }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, false);
+  assert.equal(result.analysis.success, true);
+  assert.equal(result.execution.status, 'failed');
+  assert.deepEqual(result.execution.console, ['started']);
+  assert.deepEqual(result.execution.log, [
+    { action: 'start', resource: 'web' },
+  ]);
+  assert.equal(result.execution.errors[0].type, 'runtime');
+  assert.equal(result.execution.infrastructure.servers[0].state.status, 'running');
+});
+
+test('execute route validates source type', async () => {
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: null }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    success: false,
+    message: "El campo 'source' debe ser una cadena.",
+  });
+});
+
 test('source validation is handled by the controller', async () => {
   const response = await fetch(`${baseUrl}/api/analyze`, {
     method: 'POST',

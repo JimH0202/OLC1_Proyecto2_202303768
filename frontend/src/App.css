@@ -95,6 +95,12 @@
   tab-size: 4;
 }
 
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .editor-panel button {
   margin-top: 16px;
   padding: 11px 16px;
@@ -106,8 +112,16 @@
   cursor: pointer;
 }
 
+.editor-panel button + button {
+  background: #344c3d;
+}
+
 .editor-panel button:hover:not(:disabled) {
   background: #195737;
+}
+
+.editor-panel button + button:hover:not(:disabled) {
+  background: #263b2f;
 }
 
 .editor-panel button:disabled {
