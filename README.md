@@ -32,6 +32,9 @@ docs/
 
 El inventario de tokens para implementar el lexer está en
 [docs/ESPECIFICACION_LEXICA.md](./docs/ESPECIFICACION_LEXICA.md).
+El parser está implementado en `backend/src/parser/parser.js`; la gramática del
+subconjunto que reconoce está en
+[docs/GRAMATICA_AUTOINFRA.md](./docs/GRAMATICA_AUTOINFRA.md).
 
 ## Requisitos
 
