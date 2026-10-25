@@ -44,9 +44,10 @@ servicio de análisis y este combina lexer y parser para producir el modelo
 arranque del servidor está aislado en `backend/src/api/server.js`.
 
 En el frontend se aplica una separación MVC adaptada a React: el hook controlador
-mantiene el estado y las acciones, el servicio realiza las solicitudes HTTP, el
-modelo representa la respuesta y la vista presenta la pantalla sin acceder
-directamente a la API.
+mantiene el estado y las acciones del espacio de trabajo, el servicio realiza las
+solicitudes HTTP y la vista presenta la interfaz sin acceder directamente a la API.
+La pantalla principal permite crear, abrir y guardar archivos `.infra`, ejecutar el
+programa y consultar salida, errores, tokens, AST y estado simulado.
 
 El inventario de tokens para implementar el lexer está en
 [docs/ESPECIFICACION_LEXICA.md](./docs/ESPECIFICACION_LEXICA.md).

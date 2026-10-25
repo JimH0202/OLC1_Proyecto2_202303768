@@ -1,16 +1,20 @@
-import { useConnectionTestController } from './controllers/useConnectionTestController.js'
-import { ConnectionTestView } from './views/ConnectionTestView.jsx'
+import { useWorkspaceController } from './controllers/useWorkspaceController.js'
+import { WorkspaceView } from './views/WorkspaceView.jsx'
 
 function App() {
-  const controller = useConnectionTestController()
+  const controller = useWorkspaceController()
 
   return (
-    <ConnectionTestView
+    <WorkspaceView
       source={controller.source}
-      onSourceChange={controller.setSource}
+      fileName={controller.fileName}
       result={controller.result}
       loading={controller.loading}
-      onTestConnection={controller.testConnection}
+      message={controller.message}
+      onSourceChange={controller.updateSource}
+      onNew={controller.createFile}
+      onOpen={controller.openFile}
+      onSave={controller.saveFile}
       onRunProgram={controller.runProgram}
     />
   )
