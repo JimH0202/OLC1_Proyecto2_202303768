@@ -32,6 +32,122 @@ test('walks the program AST and initializes global variables and resources in me
   }]);
 });
 
+test('executes initialized and uninitialized global declarations plus local declarations', () => {
+  const result = interpret(`
+    int initialized = 3;
+    string empty;
+    main {
+      int local = initialized + 1;
+      local = local * 2;
+      initialized = local;
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('initialized'), 8);
+  assert.equal(result.environment.getVariable('empty'), null);
+  assert.equal(result.environment.variables.has('local'), false);
+});
+
+test('executes assignments to variables and array elements', () => {
+  const result = interpret(`
+    int total = 1;
+    int[] values = [2, 3];
+    main {
+      total = total + values[0];
+      values[1] = total * 2;
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('total'), 3);
+  assert.deepEqual(result.environment.getVariable('values'), [2, 6]);
+});
+
+test('executes resource property reads and assignments in simulated memory', () => {
+  const result = interpret(`
+    server web { cpu = 2; }
+    main { web.cpu = web.cpu + 2; }
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.resources, [{
+    kind: 'server',
+    name: 'web',
+    properties: { cpu: 4 },
+  }]);
+});
+
+test('reports an assignment to an undefined variable as a located runtime error', () => {
+  const result = interpret('main {\n  missing = 2;\n}');
+
+  assert.equal(result.success, false);
+  assert.deepEqual(result.errors, [{
+    type: 'runtime',
+    message: 'Variable no definida: missing.',
+    line: 2,
+    column: 3,
+  }]);
+});
+
+test('evaluates integer, decimal, string and boolean literals', () => {
+  const result = interpret(`
+    int whole = 42;
+    float fraction = 2.5;
+    string message = "AutoInfra";
+    bool enabled = true;
+    main {}
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('whole'), 42);
+  assert.equal(result.environment.getVariable('fraction'), 2.5);
+  assert.equal(result.environment.getVariable('message'), 'AutoInfra');
+  assert.equal(result.environment.getVariable('enabled'), true);
+});
+
+test('evaluates arithmetic, comparison, equality, logical and unary operations', () => {
+  const result = interpret(`
+    int arithmetic = 20 / 2 % 6 + 3 * 2 - 1;
+    bool comparison = arithmetic >= 8 && arithmetic != 0;
+    bool equality = comparison == true || false;
+    int negative = -arithmetic;
+    bool inverted = !equality;
+    main {}
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('arithmetic'), 9);
+  assert.equal(result.environment.getVariable('comparison'), true);
+  assert.equal(result.environment.getVariable('equality'), true);
+  assert.equal(result.environment.getVariable('negative'), -9);
+  assert.equal(result.environment.getVariable('inverted'), false);
+});
+
+test('evaluates grouped expressions while preserving arithmetic precedence', () => {
+  const result = interpret(`
+    int precedence = 1 + 2 * 3;
+    int grouped = (1 + 2) * 3;
+    main {}
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('precedence'), 7);
+  assert.equal(result.environment.getVariable('grouped'), 9);
+});
+
+test('short-circuits logical expressions', () => {
+  const result = interpret(`
+    bool conjunction = false && missing();
+    bool disjunction = true || missing();
+    main {}
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('conjunction'), false);
+  assert.equal(result.environment.getVariable('disjunction'), true);
+});
+
 test('traverses function declarations and evaluates their return statements', () => {
   const result = interpret(`
     function twice(int value) int { return value * 2; }
