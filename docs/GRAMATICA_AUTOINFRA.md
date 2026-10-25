@@ -104,6 +104,10 @@ La gramática acepta expresiones en las condiciones y no comprueba que produzcan
 booleano. Tampoco comprueba si `break`, `continue` o `return` aparecen en un contexto
 de ejecución válido.
 
+Si una secuencia no coincide con la gramática, el parser informa el primer error
+sintáctico con línea, columna y lexema. El parser detiene el análisis en ese error; no
+intenta sincronizar ni recuperar el análisis.
+
 ## Expresiones y precedencia
 
 Las reglas están ordenadas de menor a mayor precedencia. Los operadores binarios de

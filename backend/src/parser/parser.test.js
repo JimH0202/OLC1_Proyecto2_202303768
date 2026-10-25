@@ -116,6 +116,20 @@ test('preserves arithmetic precedence and left associativity in the AST', () => 
   assert.equal(expression.left.right.operator, '*');
 });
 
+test('groups multiplication before addition in a + b * c', () => {
+  const { ast, errors } = parse('main { result = a + b * c; }');
+  const expression = ast.body[0].body.statements[0].value;
+
+  assert.deepEqual(errors, []);
+  assert.equal(expression.type, 'BinaryExpression');
+  assert.equal(expression.operator, '+');
+  assert.equal(expression.left.name, 'a');
+  assert.equal(expression.right.type, 'BinaryExpression');
+  assert.equal(expression.right.operator, '*');
+  assert.equal(expression.right.left.name, 'b');
+  assert.equal(expression.right.right.name, 'c');
+});
+
 test('parses every binary precedence level from logical OR to multiplication', () => {
   const { ast, errors } = parse('main { result = a || b && c == d < e + f * g; }');
   const logicalOr = ast.body[0].body.statements[0].value;
@@ -225,6 +239,30 @@ test('reports malformed syntax with location and a syntactic error type', () => 
   assert.equal(errors[0].line, 1);
   assert.equal(errors[0].column, 20);
   assert.equal(errors[0].lexeme, ';');
+});
+
+test('reports the first syntax error location and stops without synchronization', () => {
+  const { ast, errors } = parse(`main {
+  int first = ;
+  int second = ;
+}`);
+
+  assert.equal(ast, null);
+  assert.equal(errors.length, 1);
+  assert.deepEqual(
+    {
+      type: errors[0].type,
+      line: errors[0].line,
+      column: errors[0].column,
+      lexeme: errors[0].lexeme,
+    },
+    {
+      type: 'syntactic',
+      line: 2,
+      column: 15,
+      lexeme: ';',
+    },
+  );
 });
 
 test('rejects assignment to a non-assignable expression', () => {
