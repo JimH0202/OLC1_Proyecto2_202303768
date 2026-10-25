@@ -17,6 +17,7 @@ backend/
     ast/          # Fábrica y tipos de nodos del AST
     lexer/
     parser/
+    interpreter/  # Recorrido e interpretación del AST
 frontend/
   src/
     controllers/  # Estado y acciones de pantalla
@@ -57,6 +58,9 @@ El parser construye nodos JSON mediante la fábrica y catálogo de
 El entorno de ejecución en memoria está en `backend/src/environment/environment.js`.
 Mantiene valores de variables por ámbito y un registro de recursos simulado compartido
 entre ámbitos; no se conecta ni modifica servicios externos.
+El recorrido e interpretación del AST está en
+`backend/src/interpreter/interpreter.js`; las acciones nativas de infraestructura
+quedan para sus pasos posteriores de implementación.
 
 ## Requisitos
 
