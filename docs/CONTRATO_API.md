@@ -139,6 +139,7 @@ Respuesta cuando el análisis y la ejecución son exitosos:
     "success": true,
     "console": [],
     "log": [],
+    "symbols": [],
     "errors": [],
     "infrastructure": {
       "servers": [],
@@ -150,18 +151,26 @@ Respuesta cuando el análisis y la ejecución son exitosos:
 ```
 
 `console` contiene las líneas producidas por `print`. `log` es una lista de acciones
-simuladas, cada una con `action`, `resource` y, cuando aplica, `value`.
+simuladas, cada una con `action`, `resource` y, cuando aplica, `value`. El registro
+inicial de cada recurso usa `action: "register"`. Para una acción `scale`,
+`previousValue` aparece cuando el recurso ya tenía una cantidad de réplicas; la
+interfaz usa ese dato para mostrar el cambio, por ejemplo, de `2` a `3`.
 `infrastructure` agrupa los recursos por `servers`, `services` y `databases`, e
 incluye sus propiedades y estado simulado actual.
+`symbols` presenta las declaraciones observadas durante la ejecución con los campos
+`identifier`, `category`, `type`, `scope` y `value`. Es un reporte; no realiza
+validaciones semánticas.
 
 Si el análisis léxico o sintáctico falla, la ejecución no comienza. En ese caso
 `execution.status` es `"not_run"`, `execution.success` es `false` y sus colecciones
 de salida e infraestructura están vacías. `analysis.errors` conserva los errores que
 impidieron ejecutar.
 
-Si ocurre un error de ejecución después de generar salida o modificar recursos, la
-respuesta conserva la consola, bitácora y estado simulado alcanzados antes del error;
-`execution.status` será `"failed"` y `execution.errors` contendrá el error.
+Si ocurre un error de ejecución o infraestructura después de generar salida o
+modificar recursos, la respuesta conserva la consola, bitácora y estado simulado
+alcanzados antes del error; `execution.status` será `"failed"` y
+`execution.errors` contendrá el error. Los errores de dependencias de despliegue se
+identifican con `type: "infrastructure"` y `code: "INFRA-004"`.
 
 ## Formato de errores
 
@@ -179,7 +188,7 @@ la siguiente forma:
 ```
 
 - `analysis.errors` solo contiene errores `lexical` o `syntactic`.
-- `execution.errors` solo contiene errores `runtime`.
+- `execution.errors` contiene errores `runtime` o `infrastructure`.
 - `line`, `column` y `lexeme` son opcionales cuando no existe una ubicación o lexema
   asociado; cuando se informan, línea y columna empiezan en `1`.
 
@@ -199,7 +208,8 @@ detalles internos:
 
 La API realiza análisis léxico y sintáctico, construcción del AST e interpretación
 simulada si se solicita `/api/execute`. No implementa análisis semántico ni devuelve
-errores semánticos o una tabla semántica de símbolos.
+errores semánticos; la tabla de símbolos es únicamente un inventario de declaraciones
+y valores que se observaron al ejecutar.
 
 ## Reglas de compatibilidad
 
@@ -209,7 +219,7 @@ errores semánticos o una tabla semántica de símbolos.
 - Cada respuesta de análisis o ejecución incluye `success`, `analysis` y `execution`.
 - `analysis` contiene `success`, `tokens`, `errors` y `ast`.
 - `execution` es `null` en `/api/analyze`; en `/api/execute` contiene `status`,
-  `success`, `console`, `log`, `errors` e `infrastructure`.
+  `success`, `console`, `log`, `symbols`, `errors` e `infrastructure`.
 - El `success` superior es `true` solo si las fases aplicables a ese endpoint
   finalizaron sin errores.
 - `execution.status` puede ser `completed`, `failed` o `not_run`.

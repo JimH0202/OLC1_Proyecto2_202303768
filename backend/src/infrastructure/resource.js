@@ -30,8 +30,28 @@ export class InfrastructureResource {
     return {
       kind: this.kind,
       name: this.name,
-      properties: { ...this.properties },
-      state: { ...this.state },
+      properties: serializeProperties(this.properties),
+      state: serializeProperties(this.state),
     };
   }
+}
+
+function serializeProperties(properties) {
+  return Object.fromEntries(
+    Object.entries(properties).map(([key, value]) => [key, serializeProperty(value)]),
+  );
+}
+
+function serializeProperty(value) {
+  if (Array.isArray(value)) {
+    return value.map(serializeProperty);
+  }
+  if (value !== null && typeof value === 'object'
+    && typeof value.kind === 'string'
+    && typeof value.name === 'string'
+    && value.properties !== null
+    && typeof value.properties === 'object') {
+    return { kind: value.kind, name: value.name };
+  }
+  return value;
 }

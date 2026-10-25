@@ -55,6 +55,22 @@ test('requires one final main block after global declarations and resources', ()
   ]);
 });
 
+test('parses infrastructure reference types in variables and function signatures', () => {
+  const { ast, errors } = parse(`
+    server backend {}
+    function isReady(server host, database db) bool {
+      return host.status == "running" && db.status == "running";
+    }
+    server selected;
+    main {}
+  `);
+
+  assert.deepEqual(errors, []);
+  assert.equal(ast.body[1].parameters[0].dataType.name, 'server');
+  assert.equal(ast.body[1].parameters[1].dataType.name, 'database');
+  assert.equal(ast.body[2].dataType.name, 'server');
+});
+
 test('rejects a program without main', () => {
   const { ast, errors } = parse('int count = 1;');
 

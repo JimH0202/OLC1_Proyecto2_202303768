@@ -27,8 +27,7 @@ function AstTreeNode({ label, value, depth = 0, expanded }) {
   }
 
   if (value !== null && typeof value === 'object') {
-    const childEntries = Object.entries(value)
-      .filter(([key]) => key !== 'type' && key !== 'line' && key !== 'column')
+    const childEntries = getAstTreeEntries(value)
     const hasChildren = childEntries.length > 0
 
     return (
@@ -36,9 +35,11 @@ function AstTreeNode({ label, value, depth = 0, expanded }) {
         <details open={expanded}>
           <summary>
             {value.type
-              ? <span className="ast-node-type">{value.type}</span>
+              ? <span className="ast-node-type">{getAstNodeTitle(value)}</span>
               : <span className="ast-field-name">{label}</span>}
-            {value.type && label !== 'root' && <span className="ast-field-name">{label}</span>}
+            {value.type && label !== 'root' && (
+              <span className="ast-field-name">{label}</span>
+            )}
             {Number.isInteger(value.line) && Number.isInteger(value.column) && (
               <span className="ast-node-location">{value.line}:{value.column}</span>
             )}
@@ -56,14 +57,7 @@ function AstTreeNode({ label, value, depth = 0, expanded }) {
               ))}
             </ul>
           ) : (
-            <ul className="ast-tree-children">
-              {childEntries.map(([key, child]) => (
-                <li className="ast-tree-value" key={key}>
-                  <span className="ast-field-name">{key}</span>
-                  <code>{JSON.stringify(child)}</code>
-                </li>
-              ))}
-            </ul>
+            null
           )}
         </details>
       </li>
@@ -73,9 +67,75 @@ function AstTreeNode({ label, value, depth = 0, expanded }) {
   return (
     <li className="ast-tree-value">
       <span className="ast-field-name">{label}</span>
-      <code>{JSON.stringify(value)}</code>
+      <code>{typeof value === 'string' ? value : JSON.stringify(value)}</code>
     </li>
   )
+}
+
+function getAstTreeEntries(node) {
+  if (node.type === 'VariableDeclaration') {
+    return [
+      ['Type', node.dataType.name],
+      ['Name', node.name],
+      ...(node.initializer ? [['Value', node.initializer]] : []),
+    ]
+  }
+
+  if (node.type === 'BinaryExpression') {
+    return [
+      ['Left', node.left],
+      ['Right', node.right],
+    ]
+  }
+
+  if (node.type === 'Identifier' || node.type === 'Literal') {
+    return []
+  }
+
+  return Object.entries(node)
+    .filter(([key]) => key !== 'type' && key !== 'line' && key !== 'column')
+}
+
+function getAstNodeTitle(node) {
+  if (node.type === 'BinaryExpression') {
+    return `Binary(${node.operator})`
+  }
+  if (node.type === 'Identifier') {
+    return `Identifier(${node.name})`
+  }
+  if (node.type === 'Literal') {
+    return `Literal(${JSON.stringify(node.value)})`
+  }
+  return node.type
+}
+
+function formatActionEntry(entry) {
+  switch (entry.action) {
+    case 'register':
+      return `[OK] Resource '${entry.resource}' registered`
+    case 'start':
+      return `[OK] ${entry.resource} -> running`
+    case 'stop':
+      return `[OK] ${entry.resource} -> stopped`
+    case 'restart':
+      return `[OK] ${entry.resource} restarted`
+    case 'install':
+      return `[OK] ${entry.value} installed on ${entry.resource}`
+    case 'uninstall':
+      return `[OK] ${entry.value} removed from ${entry.resource}`
+    case 'deploy':
+      return `[OK] ${entry.resource} deployed on ${entry.value}`
+    case 'connect':
+      return `[OK] ${entry.resource} connected to ${entry.value}`
+    case 'disconnect':
+      return `[OK] ${entry.resource} disconnected from ${entry.value}`
+    case 'scale':
+      return entry.previousValue === undefined
+        ? `[OK] ${entry.resource} scaled to ${entry.value} replicas`
+        : `[OK] ${entry.resource} scaled from ${entry.previousValue} to ${entry.value} replicas`
+    default:
+      return `[OK] ${entry.action} ${entry.resource}`
+  }
 }
 
 export function WorkspaceView({
@@ -90,6 +150,8 @@ export function WorkspaceView({
   onNew,
   onOpen,
   onSave,
+  onSaveAs,
+  onClearExecution,
   onValidateConnection,
   onRunProgram,
 }) {
@@ -141,6 +203,7 @@ export function WorkspaceView({
                 Abrir
               </button>
               <button type="button" className="button-secondary" onClick={onSave}>Guardar</button>
+              <button type="button" className="button-secondary" onClick={onSaveAs}>Guardar como</button>
               <input
                 ref={fileInput}
                 className="visually-hidden"
@@ -151,6 +214,14 @@ export function WorkspaceView({
               />
             </div>
             <div className="primary-actions">
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={onClearExecution}
+                disabled={!result}
+              >
+                Limpiar ejecución
+              </button>
               <button
                 type="button"
                 className="button-secondary connection-button"
@@ -205,9 +276,20 @@ export function WorkspaceView({
             <h2>Resultados</h2>
           </div>
           {result && (
-            <span className={`status ${result.success ? 'status-ok' : 'status-error'}`}>
-              {result.success ? 'Sin errores' : 'Revisar resultados'}
-            </span>
+            <div className="result-statuses" aria-live="polite">
+              {result.analysis && (
+                <span className={`status ${result.analysis.success ? 'status-ok' : 'status-error'}`}>
+                  {result.analysis.success ? 'Análisis exitoso' : 'Análisis con errores'}
+                </span>
+              )}
+              {execution && (
+                <span className={`status ${execution.success ? 'status-ok' : 'status-error'}`}>
+                  {execution.status === 'not_run'
+                    ? 'Ejecución no iniciada'
+                    : execution.success ? 'Ejecución exitosa' : 'Ejecución con errores'}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
@@ -231,11 +313,7 @@ export function WorkspaceView({
                   <ol>
                     {execution.log.map((entry, index) => (
                       <li key={`${entry.action}-${entry.resource}-${index}`}>
-                        <code>{entry.action}</code>
-                        <span>{entry.resource}</span>
-                        {entry.value !== undefined && (
-                          <span className="log-value">{String(entry.value)}</span>
-                        )}
+                        <code>{formatActionEntry(entry)}</code>
                       </li>
                     ))}
                   </ol>
@@ -274,7 +352,7 @@ export function WorkspaceView({
 
           <section
             className="result-panel errors-panel"
-            aria-label="Errores léxicos, sintácticos y de ejecución"
+            aria-label="Errores léxicos, sintácticos, de infraestructura y de ejecución"
           >
             <div className="result-panel-heading">
               <h3>Errores</h3>
@@ -290,6 +368,10 @@ export function WorkspaceView({
                       <div>
                         <dt>Tipo</dt>
                         <dd><span className="error-type">{error.type ?? 'desconocido'}</span></dd>
+                      </div>
+                      <div>
+                        <dt>Código</dt>
+                        <dd>{error.code ?? '—'}</dd>
                       </div>
                       <div className="error-description">
                         <dt>Descripción</dt>
@@ -339,6 +421,47 @@ export function WorkspaceView({
             ) : (
               <p className="result-empty">
                 {analysis ? 'No hay tokens reconocidos.' : 'Los tokens aparecerán aquí después del análisis.'}
+              </p>
+            )}
+          </section>
+
+          <section className="result-panel symbols-panel" aria-label="Tabla de símbolos">
+            <div className="result-panel-heading">
+              <h3>Tabla de símbolos</h3>
+              <span>{execution?.symbols?.length ?? '—'}</span>
+            </div>
+            {execution?.symbols?.length > 0 ? (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Identificador</th>
+                      <th>Categoría</th>
+                      <th>Tipo</th>
+                      <th>Ámbito</th>
+                      <th>Valor / estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {execution.symbols.map((symbol, index) => (
+                      <tr key={`${symbol.scope}-${symbol.identifier}-${index}`}>
+                        <td><code>{symbol.identifier}</code></td>
+                        <td>{symbol.category}</td>
+                        <td>{symbol.type ?? '—'}</td>
+                        <td>{symbol.scope}</td>
+                        <td>
+                          <code>
+                            {symbol.value === undefined ? '' : JSON.stringify(symbol.value)}
+                          </code>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="result-empty">
+                {execution ? 'No se registraron símbolos durante la ejecución.' : 'La tabla se mostrará después de ejecutar.'}
               </p>
             )}
           </section>

@@ -34,6 +34,7 @@ export function executeSource(source) {
         success: false,
         console: [],
         log: [],
+        symbols: [],
         errors: [],
         infrastructure: emptyInfrastructure(),
       },
@@ -52,6 +53,7 @@ export function executeSource(source) {
     success: result.success,
     console: result.console,
     log: result.log,
+    symbols: result.symbols,
     errors: result.errors,
     infrastructure,
   };

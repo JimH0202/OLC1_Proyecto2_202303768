@@ -17,6 +17,8 @@ function App() {
       onNew={controller.createFile}
       onOpen={controller.openFile}
       onSave={controller.saveFile}
+      onSaveAs={controller.saveFileAs}
+      onClearExecution={controller.clearExecution}
       onValidateConnection={controller.validateConnection}
       onRunProgram={controller.runProgram}
     />

@@ -55,11 +55,12 @@ export class Parser {
   }
 
   parseDeclaration() {
+    if (resourceTypes.has(this.peek().type)
+      && this.tokens[this.current + 2]?.type === TokenType.LEFT_BRACE) {
+      return this.parseResourceDeclaration();
+    }
     if (this.isType(this.peek().type)) {
       return this.parseVariableDeclaration();
-    }
-    if (resourceTypes.has(this.peek().type)) {
-      return this.parseResourceDeclaration();
     }
     if (this.match(TokenType.FUNCTION)) {
       return this.parseFunctionDeclaration(this.previous());
@@ -157,10 +158,11 @@ export class Parser {
 
   parseType() {
     const start = this.peek();
-    const name = primitiveTypes.get(this.advanceIfType()?.type);
+    const typeToken = this.advanceIfType();
+    const name = primitiveTypes.get(typeToken?.type) ?? typeToken?.lexeme;
 
     if (!name) {
-      throw this.syntaxError('Se esperaba un tipo primitivo.');
+      throw this.syntaxError('Se esperaba un tipo.');
     }
 
     let dimensions = 0;
@@ -495,7 +497,7 @@ export class Parser {
   }
 
   isType(type) {
-    return primitiveTypes.has(type);
+    return primitiveTypes.has(type) || resourceTypes.has(type);
   }
 
   consume(type, message) {

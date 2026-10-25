@@ -46,3 +46,16 @@ test('rejects resource kinds and properties outside the model shape', () => {
     /Las propiedades del recurso deben ser un objeto/,
   );
 });
+
+test('serializes nested resource state without exposing mutable arrays', () => {
+  const resource = new InfrastructureResource({
+    kind: 'server',
+    name: 'web',
+    properties: {},
+  });
+  resource.state.installed = ['docker'];
+  const snapshot = resource.toJSON();
+
+  snapshot.state.installed.push('nginx');
+  assert.deepEqual(resource.state.installed, ['docker']);
+});

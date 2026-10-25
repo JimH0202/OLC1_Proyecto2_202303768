@@ -8,7 +8,7 @@ export class RuntimeEnvironmentError extends Error {
 }
 
 export class Environment {
-  constructor(parent = null, state = null) {
+  constructor(parent = null, state = null, scopeName = 'global') {
     if (parent !== null && !(parent instanceof Environment)) {
       throw new TypeError('El ámbito padre debe ser un Environment o null.');
     }
@@ -17,15 +17,29 @@ export class Environment {
     this.variables = new Map();
     this.state = state ?? {
       resources: new Map(),
+      symbols: [],
     };
+    this.scope = parent ? `${parent.scope}/${scopeName}` : scopeName;
   }
 
-  createChild() {
-    return new Environment(this, this.state);
+  createChild(scopeName = 'block') {
+    return new Environment(this, this.state, scopeName);
   }
 
-  defineVariable(name, value) {
+  defineVariable(name, value, { category = 'variable', type = null } = {}) {
     this.variables.set(name, value);
+    const symbol = [...this.state.symbols]
+      .reverse()
+      .find((entry) => entry.scope === this.scope
+        && entry.identifier === name
+        && entry.category === category);
+    if (symbol) {
+      symbol.category = category;
+      symbol.type = type;
+      symbol.value = value;
+    } else {
+      this.recordSymbol(name, category, type, value);
+    }
     return value;
   }
 
@@ -42,6 +56,14 @@ export class Environment {
   assignVariable(name, value) {
     if (this.variables.has(name)) {
       this.variables.set(name, value);
+      const symbol = [...this.state.symbols]
+        .reverse()
+        .find((entry) => entry.scope === this.scope
+          && entry.identifier === name
+          && (entry.category === 'variable' || entry.category === 'parameter'));
+      if (symbol) {
+        symbol.value = value;
+      }
       return value;
     }
     if (this.parent) {
@@ -64,6 +86,7 @@ export class Environment {
       ])),
     });
     this.state.resources.set(name, resource);
+    this.recordSymbol(name, 'resource', kind, resource);
     return resource;
   }
 
@@ -78,4 +101,54 @@ export class Environment {
   listResources() {
     return [...this.state.resources.values()].map((resource) => resource.toJSON());
   }
+
+  recordSymbol(identifier, category, type, value) {
+    this.state.symbols.push({
+      identifier,
+      category,
+      type,
+      scope: this.scope,
+      value,
+    });
+  }
+
+  listSymbols() {
+    return this.state.symbols.map(({
+      identifier,
+      category,
+      type,
+      scope,
+      value,
+    }) => ({
+      identifier,
+      category,
+      type,
+      scope,
+      value: serializeSymbolValue(value),
+    }));
+  }
+}
+
+function serializeSymbolValue(value) {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(serializeSymbolValue);
+  }
+  if (typeof value.kind === 'string' && typeof value.name === 'string'
+    && value.properties !== null && typeof value.properties === 'object') {
+    return {
+      kind: value.kind,
+      name: value.name,
+      status: value.state?.status,
+      properties: serializeSymbolValue(value.properties),
+    };
+  }
+  if (typeof value.toJSON === 'function') {
+    return serializeSymbolValue(value.toJSON());
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, serializeSymbolValue(item)]),
+  );
 }

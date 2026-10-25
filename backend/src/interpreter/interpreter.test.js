@@ -24,7 +24,74 @@ test('executes the shared smoke-test file using native actions', async () => {
   assert.equal(result.success, true);
   assert.deepEqual(result.console, ['AutoInfra listo']);
   assert.equal(result.resources[0].state.status, 'running');
+  assert.deepEqual(result.log, [
+    { action: 'register', resource: 'web' },
+    { action: 'start', resource: 'web' },
+  ]);
   assert.deepEqual(result.errors, []);
+});
+
+test('executes an advanced workflow with references, arrays, functions, tasks and dependencies', () => {
+  const result = interpret(`
+    database db { engine = "postgresql"; version = "16"; port = 5432; }
+    server backend { cpu = 8; memory = 16; disk = 200; os = "ubuntu"; }
+    service api { port = 8080; replicas = 2; dependsOn = [db]; }
+    string[] packages = ["docker", "git", "nginx"];
+
+    function prepare(server host, string[] items) bool {
+      int index = 0;
+      while (index < length(items)) {
+        install(host, items[index]);
+        index = index + 1;
+      }
+      return true;
+    }
+
+    function enoughMemory(server host, int minimum) bool {
+      return host.memory >= minimum;
+    }
+
+    task production {
+      start(db);
+      start(backend);
+      prepare(backend, packages);
+      if (enoughMemory(backend, 8)) {
+        deploy(backend, api);
+        for (int replicas = 2; replicas <= 5; replicas = replicas + 1) {
+          scale(api, replicas);
+        }
+      }
+    }
+
+    main { run production; }
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.resources.map(({ kind, name, state }) => ({
+    kind,
+    name,
+    state,
+  })), [
+    { kind: 'database', name: 'db', state: { status: 'running' } },
+    {
+      kind: 'server',
+      name: 'backend',
+      state: {
+        status: 'running',
+        installed: ['docker', 'git', 'nginx'],
+      },
+    },
+    {
+      kind: 'service',
+      name: 'api',
+      state: {
+        status: 'running',
+        deployedTo: 'backend',
+        replicas: 5,
+      },
+    },
+  ]);
 });
 
 test('walks the program AST and initializes global variables and resources in memory', () => {
@@ -62,7 +129,7 @@ test('executes initialized and uninitialized global declarations plus local decl
 
   assert.equal(result.success, true);
   assert.equal(result.environment.getVariable('initialized'), 8);
-  assert.equal(result.environment.getVariable('empty'), null);
+  assert.equal(result.environment.getVariable('empty'), '');
   assert.equal(result.environment.variables.has('local'), false);
 });
 
@@ -110,6 +177,7 @@ test('executes the native start and stop actions against simulated resource stat
   assert.equal(result.success, true);
   assert.equal(result.resources[0].state.status, 'stopped');
   assert.deepEqual(result.log, [
+    { action: 'register', resource: 'web' },
     { action: 'start', resource: 'web' },
     { action: 'stop', resource: 'web' },
   ]);
@@ -121,7 +189,7 @@ test('simulates install, deploy and scale without excluded domain restrictions',
     service api {}
     main {
       install(web, "nginx");
-      deploy(api, web);
+      deploy(web, api);
       scale(api, 0);
     }
   `);
@@ -142,17 +210,204 @@ test('simulates install, deploy and scale without excluded domain restrictions',
       name: 'api',
       properties: {},
       state: {
-        status: 'deployed',
+        status: 'running',
         deployedTo: 'web',
         replicas: 0,
       },
     },
   ]);
   assert.deepEqual(result.log, [
+    { action: 'register', resource: 'web' },
+    { action: 'register', resource: 'api' },
     { action: 'install', resource: 'web', value: 'nginx' },
     { action: 'deploy', resource: 'api', value: 'web' },
     { action: 'scale', resource: 'api', value: 0 },
   ]);
+});
+
+test('records the previous replica count when scaling an already scaled resource', () => {
+  const result = interpret(`
+    service api {}
+    main {
+      scale(api, 2);
+      scale(api, 3);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.log, [
+    { action: 'register', resource: 'api' },
+    { action: 'scale', resource: 'api', value: 2 },
+    { action: 'scale', resource: 'api', value: 3, previousValue: 2 },
+  ]);
+});
+
+test('applies default values for primitive, reference, and array variables', () => {
+  const result = interpret(`
+    int whole;
+    float fraction;
+    string text;
+    bool enabled;
+    server node;
+    int[] values;
+    main {}
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('whole'), 0);
+  assert.equal(result.environment.getVariable('fraction'), 0);
+  assert.equal(result.environment.getVariable('text'), '');
+  assert.equal(result.environment.getVariable('enabled'), false);
+  assert.equal(result.environment.getVariable('node'), null);
+  assert.deepEqual(result.environment.getVariable('values'), []);
+});
+
+test('uses lexical global scope for functions and permits resource parameters', () => {
+  const result = interpret(`
+    int amount = 3;
+    function readAmount() int { return amount; }
+    function isRunning(server node) bool { return node.status == "running"; }
+    server web {}
+    int answer = 0;
+    bool ready = false;
+    main {
+      int amount = 99;
+      start(web);
+      answer = readAmount();
+      ready = isRunning(web);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('answer'), 3);
+  assert.equal(result.environment.getVariable('ready'), true);
+});
+
+test('reports declared symbols, scopes, and final values without semantic checks', () => {
+  const result = interpret(`
+    int total = 1;
+    server web {}
+    function double(int amount) int {
+      int local = amount * 2;
+      return local;
+    }
+    main {
+      int answer = double(total);
+      start(web);
+    }
+  `);
+  const globalVariable = result.symbols.find(({ identifier, scope }) => (
+    identifier === 'total' && scope === 'global'
+  ));
+  const resource = result.symbols.find(({ identifier }) => identifier === 'web');
+  const parameter = result.symbols.find(({ identifier, category }) => (
+    identifier === 'amount' && category === 'parameter'
+  ));
+  const local = result.symbols.find(({ identifier }) => identifier === 'local');
+
+  assert.equal(result.success, true);
+  assert.equal(globalVariable.value, 1);
+  assert.equal(resource.value.status, 'running');
+  assert.equal(parameter.type, 'int');
+  assert.equal(parameter.value, 1);
+  assert.equal(local.value, 2);
+  assert.match(local.scope, /function:double/);
+});
+
+test('checks service dependencies before changing deployment state', () => {
+  const result = interpret(`
+    service api { dependsOn = [db]; }
+    server backend {}
+    database db {}
+    main { deploy(backend, api); }
+  `);
+
+  assert.equal(result.success, false);
+  assert.deepEqual(result.errors[0], {
+    type: 'infrastructure',
+    message: "No se puede desplegar 'api'. Dependencia 'db' se encuentra en estado stopped.",
+    code: 'INFRA-004',
+    line: 5,
+    column: 18,
+  });
+  assert.deepEqual(result.resources[0].state, { status: 'stopped' });
+  assert.equal(result.resources[0].state.deployedTo, undefined);
+  assert.deepEqual(result.log, [
+    { action: 'register', resource: 'api' },
+    { action: 'register', resource: 'backend' },
+    { action: 'register', resource: 'db' },
+  ]);
+});
+
+test('exposes resource status, host, packages and replicas during simulation', () => {
+  const result = interpret(`
+    server backend {}
+    database db {}
+    service api { dependsOn = [db]; replicas = 2; }
+    bool hasHost = false;
+    int replicas = 0;
+    string currentStatus = "";
+    main {
+      start(db);
+      install(backend, "docker");
+      deploy(backend, api);
+      scale(api, 3);
+      hasHost = api.host == backend;
+      replicas = api.replicas;
+      currentStatus = status(api);
+      print(backend.status, length(backend.packages), api.status);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('hasHost'), true);
+  assert.equal(result.environment.getVariable('replicas'), 3);
+  assert.equal(result.environment.getVariable('currentStatus'), 'running');
+  assert.deepEqual(result.console, ['stopped 1 running']);
+  assert.equal(result.resources[2].state.status, 'running');
+});
+
+test('supports restart, uninstall, status, and non-deduplicated connections', () => {
+  const result = interpret(`
+    server web {}
+    database db {}
+    bool stopped = false;
+    bool restarted = false;
+    bool removed = false;
+    string currentStatus = "";
+    main {
+      stopped = stop(web);
+      start(web);
+      restarted = restart(web);
+      install(web, "docker");
+      install(web, "docker");
+      removed = uninstall(web, "docker");
+      connect(web, db);
+      connect(web, db);
+      disconnect(web, db);
+      currentStatus = status(web);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('stopped'), false);
+  assert.equal(result.environment.getVariable('restarted'), true);
+  assert.equal(result.environment.getVariable('removed'), true);
+  assert.equal(result.environment.getVariable('currentStatus'), 'running');
+  assert.deepEqual(result.resources[0].state.installed, ['docker']);
+  assert.deepEqual(result.resources[0].state.connections, ['db']);
+});
+
+test('reports division by zero as a located runtime error', () => {
+  const result = interpret('main { print(4 / 0); }');
+
+  assert.equal(result.success, false);
+  assert.deepEqual(result.errors[0], {
+    type: 'runtime',
+    message: 'No se puede dividir entre cero.',
+    line: 1,
+    column: 16,
+  });
 });
 
 test('does not deduplicate repeated actions or warn when starting an active resource', () => {
@@ -166,8 +421,8 @@ test('does not deduplicate repeated actions or warn when starting an active reso
       secondStart = start(web);
       install(web, "nginx");
       install(web, "nginx");
-      deploy(api, web);
-      deploy(api, web);
+      deploy(web, api);
+      deploy(web, api);
       scale(api, 0);
       scale(api, 0);
     }
@@ -181,6 +436,8 @@ test('does not deduplicate repeated actions or warn when starting an active reso
   assert.deepEqual(result.resources[0].state.installed, ['nginx', 'nginx']);
   assert.equal(result.resources[1].state.replicas, 0);
   assert.deepEqual(result.log, [
+    { action: 'register', resource: 'web' },
+    { action: 'register', resource: 'api' },
     { action: 'start', resource: 'web' },
     { action: 'start', resource: 'web' },
     { action: 'install', resource: 'web', value: 'nginx' },
@@ -188,7 +445,7 @@ test('does not deduplicate repeated actions or warn when starting an active reso
     { action: 'deploy', resource: 'api', value: 'web' },
     { action: 'deploy', resource: 'api', value: 'web' },
     { action: 'scale', resource: 'api', value: 0 },
-    { action: 'scale', resource: 'api', value: 0 },
+    { action: 'scale', resource: 'api', value: 0, previousValue: 0 },
   ]);
 });
 
@@ -212,7 +469,7 @@ test('prints values to the simulated console and evaluates length for strings an
 });
 
 test('reports invalid native calls as located runtime errors', () => {
-  const result = interpret('server web {}\nmain { scale(web, "many"); }');
+  const result = interpret('service api {}\nmain { scale(api, "many"); }');
 
   assert.equal(result.success, false);
   assert.equal(result.errors[0].type, 'runtime');

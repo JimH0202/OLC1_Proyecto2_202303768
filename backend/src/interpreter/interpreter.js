@@ -3,18 +3,24 @@ import { Environment, RuntimeEnvironmentError } from '../environment/environment
 const nativeFunctionNames = new Set([
   'start',
   'stop',
+  'restart',
   'install',
+  'uninstall',
   'deploy',
   'scale',
+  'connect',
+  'disconnect',
   'print',
   'length',
+  'status',
 ]);
 
 export class RuntimeExecutionError extends Error {
-  constructor(message, node = null) {
+  constructor(message, node = null, { type = 'runtime', code } = {}) {
     super(message);
     this.name = 'RuntimeExecutionError';
-    this.type = 'runtime';
+    this.type = type;
+    this.code = code;
     this.line = node?.line;
     this.column = node?.column;
   }
@@ -23,6 +29,7 @@ export class RuntimeExecutionError extends Error {
     return {
       type: this.type,
       message: this.message,
+      ...(this.code === undefined ? {} : { code: this.code }),
       ...(this.line === undefined ? {} : { line: this.line }),
       ...(this.column === undefined ? {} : { column: this.column }),
     };
@@ -45,6 +52,7 @@ export class Interpreter {
     }
 
     this.environment = environment;
+    this.globalEnvironment = environment;
     this.functions = new Map();
     this.tasks = new Map();
     this.console = [];
@@ -60,11 +68,16 @@ export class Interpreter {
     this.log = [];
     try {
       this.registerCallableDeclarations(program.body);
+      this.registerResources(program.body);
       for (const declaration of program.body) {
         if (declaration.type !== 'MainDeclaration'
           && declaration.type !== 'FunctionDeclaration'
           && declaration.type !== 'TaskDeclaration') {
-          this.executeDeclaration(declaration, this.environment);
+          if (declaration.type === 'ResourceDeclaration') {
+            this.initializeResource(declaration, this.environment);
+          } else {
+            this.executeDeclaration(declaration, this.environment);
+          }
         }
       }
 
@@ -73,7 +86,7 @@ export class Interpreter {
         throw new RuntimeExecutionError('No se encontró el bloque main.', program);
       }
 
-      this.executeStatement(main.body, this.environment);
+      this.executeStatement(main.body, this.environment.createChild('main'));
       return {
         success: true,
         console: [...this.console],
@@ -81,6 +94,7 @@ export class Interpreter {
         errors: [],
         environment: this.environment,
         resources: this.environment.listResources(),
+        symbols: this.environment.listSymbols(),
       };
     } catch (error) {
       if (error instanceof RuntimeExecutionError) {
@@ -90,6 +104,7 @@ export class Interpreter {
           log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
+          symbols: this.environment.listSymbols(),
           errors: [error.toJSON()],
         };
       }
@@ -107,6 +122,7 @@ export class Interpreter {
           log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
+          symbols: this.environment.listSymbols(),
           errors: [runtimeError.toJSON()],
         };
       }
@@ -118,6 +134,7 @@ export class Interpreter {
           log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
+          symbols: this.environment.listSymbols(),
           errors: [runtimeError.toJSON()],
         };
       }
@@ -129,10 +146,39 @@ export class Interpreter {
     for (const declaration of declarations) {
       if (declaration.type === 'FunctionDeclaration') {
         this.functions.set(declaration.name, declaration);
+        this.environment.recordSymbol(
+          declaration.name,
+          'function',
+          typeName(declaration.returnType),
+          null,
+        );
       } else if (declaration.type === 'TaskDeclaration') {
         this.tasks.set(declaration.name, declaration);
+        this.environment.recordSymbol(declaration.name, 'task', null, null);
       }
     }
+  }
+
+  registerResources(declarations) {
+    for (const declaration of declarations) {
+      if (declaration.type !== 'ResourceDeclaration') {
+        continue;
+      }
+      this.environment.defineResource({
+        kind: declaration.kind,
+        name: declaration.name,
+        properties: [],
+      });
+      this.recordNativeAction('register', declaration.name);
+    }
+  }
+
+  initializeResource(declaration, environment) {
+    const resource = environment.getResource(declaration.name);
+    resource.properties = Object.fromEntries(declaration.properties.map(({ name, value }) => [
+      name,
+      this.evaluateExpression(value, environment),
+    ]));
   }
 
   executeDeclaration(declaration, environment) {
@@ -142,19 +188,12 @@ export class Interpreter {
           declaration.name,
           declaration.initializer
             ? this.evaluateExpression(declaration.initializer, environment)
-            : null,
+            : defaultValue(declaration.dataType),
+          { type: typeName(declaration.dataType) },
         );
         return;
       case 'ResourceDeclaration':
-        environment.defineResource({
-          kind: declaration.kind,
-          name: declaration.name,
-          properties: declaration.properties.map(({ name, value }) => ({
-            name,
-            value: this.evaluateExpression(value, environment),
-          })),
-        });
-        return;
+        return this.initializeResource(declaration, environment);
       default:
         throw this.runtimeError(`Declaración no soportada: ${declaration.type}.`, declaration);
     }
@@ -177,7 +216,7 @@ export class Interpreter {
       case 'ForStatement':
         return this.executeFor(statement, environment);
       case 'RunStatement':
-        return this.executeRun(statement, environment);
+        return this.executeRun(statement);
       case 'ReturnStatement':
         throw new ReturnSignal(
           statement.value ? this.evaluateExpression(statement.value, environment) : null,
@@ -192,7 +231,7 @@ export class Interpreter {
   }
 
   executeBlock(block, parentEnvironment) {
-    const environment = parentEnvironment.createChild();
+    const environment = parentEnvironment.createChild(`block:${block.line}:${block.column}`);
     for (const statement of block.statements) {
       this.executeStatement(statement, environment);
     }
@@ -258,7 +297,7 @@ export class Interpreter {
   }
 
   executeFor(statement, environment) {
-    const loopEnvironment = environment.createChild();
+    const loopEnvironment = environment.createChild(`for:${statement.line}:${statement.column}`);
     if (statement.initializer) {
       this.executeForClause(statement.initializer, loopEnvironment);
     }
@@ -293,7 +332,7 @@ export class Interpreter {
     }
   }
 
-  executeRun(statement, environment) {
+  executeRun(statement) {
     const task = this.tasks.get(statement.task);
     if (!task) {
       throw this.runtimeError(`Tarea no definida: ${statement.task}.`, statement);
@@ -302,7 +341,7 @@ export class Interpreter {
       throw this.runtimeError('Las tareas simuladas no reciben argumentos.', statement);
     }
 
-    const taskEnvironment = environment.createChild();
+    const taskEnvironment = this.globalEnvironment.createChild(`task:${task.name}`);
     for (const childStatement of task.body.statements) {
       this.executeStatement(childStatement, taskEnvironment);
     }
@@ -373,6 +412,9 @@ export class Interpreter {
     }
 
     const right = this.evaluateExpression(expression.right, environment);
+    if ((expression.operator === '/' || expression.operator === '%') && right === 0) {
+      throw this.runtimeError('No se puede dividir entre cero.', expression);
+    }
     switch (expression.operator) {
       case '+': return left + right;
       case '-': return left - right;
@@ -393,6 +435,20 @@ export class Interpreter {
   evaluateMember(expression, environment) {
     const object = this.evaluateExpression(expression.object, environment);
     if (isResource(object)) {
+      if (expression.property === 'status') {
+        return object.state.status;
+      }
+      if (object.kind === 'server' && expression.property === 'packages') {
+        return object.state.installed ?? [];
+      }
+      if (object.kind === 'service' && expression.property === 'replicas') {
+        return object.state.replicas ?? object.properties.replicas;
+      }
+      if (object.kind === 'service' && expression.property === 'host') {
+        return object.state.deployedTo
+          ? environment.getResource(object.state.deployedTo)
+          : null;
+      }
       return object.properties[expression.property];
     }
     if (object === null || object === undefined) {
@@ -425,9 +481,14 @@ export class Interpreter {
     }
 
     const args = expression.arguments.map((argument) => this.evaluateExpression(argument, environment));
-    const functionEnvironment = environment.createChild();
+    const functionEnvironment = this.globalEnvironment.createChild(
+      `function:${declaration.name}`,
+    );
     declaration.parameters.forEach((parameter, index) => {
-      functionEnvironment.defineVariable(parameter.name, args[index] ?? null);
+      functionEnvironment.defineVariable(parameter.name, args[index] ?? null, {
+        category: 'parameter',
+        type: typeName(parameter.dataType),
+      });
     });
 
     try {
@@ -459,13 +520,25 @@ export class Interpreter {
       case 'stop': {
         const [resource] = this.requireNativeArguments(name, args, 1, expression);
         this.requireResourceArgument(resource, name, expression);
+        if (resource.state.status === 'stopped') {
+          return false;
+        }
         resource.state.status = 'stopped';
+        this.recordNativeAction(name, resource.name);
+        return true;
+      }
+      case 'restart': {
+        const [resource] = this.requireNativeArguments(name, args, 1, expression);
+        this.requireResourceArgument(resource, name, expression);
+        if (resource.state.status !== 'running') {
+          return false;
+        }
         this.recordNativeAction(name, resource.name);
         return true;
       }
       case 'install': {
         const [server, software] = this.requireNativeArguments(name, args, 2, expression);
-        this.requireResourceArgument(server, name, expression);
+        this.requireResourceKind(server, 'server', name, expression);
         if (typeof software !== 'string') {
           throw this.runtimeError('install requiere el nombre del software como cadena.', expression);
         }
@@ -474,23 +547,77 @@ export class Interpreter {
         this.recordNativeAction(name, server.name, software);
         return true;
       }
+      case 'uninstall': {
+        const [server, software] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceKind(server, 'server', name, expression);
+        if (typeof software !== 'string') {
+          throw this.runtimeError('uninstall requiere el nombre del software como cadena.', expression);
+        }
+        const installed = server.state.installed ?? [];
+        const packageIndex = installed.indexOf(software);
+        if (packageIndex === -1) {
+          return false;
+        }
+        installed.splice(packageIndex, 1);
+        this.recordNativeAction(name, server.name, software);
+        return true;
+      }
       case 'deploy': {
-        const [service, server] = this.requireNativeArguments(name, args, 2, expression);
-        this.requireResourceArgument(service, name, expression);
-        this.requireResourceArgument(server, name, expression);
+        const [server, service] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceKind(server, 'server', name, expression);
+        this.requireResourceKind(service, 'service', name, expression);
+        const dependencies = service.properties.dependsOn ?? [];
+        if (!Array.isArray(dependencies)) {
+          throw this.runtimeError('dependsOn debe ser un arreglo de recursos.', expression);
+        }
+        for (const dependency of dependencies) {
+          if (!isResource(dependency)) {
+            throw this.runtimeError('dependsOn debe contener recursos.', expression);
+          }
+          if (dependency.state.status !== 'running') {
+            throw new RuntimeExecutionError(
+              `No se puede desplegar '${service.name}'. Dependencia '${dependency.name}' se encuentra en estado ${dependency.state.status}.`,
+              expression,
+              { type: 'infrastructure', code: 'INFRA-004' },
+            );
+          }
+        }
         service.state.deployedTo = server.name;
-        service.state.status = 'deployed';
+        service.state.status = 'running';
         this.recordNativeAction(name, service.name, server.name);
         return true;
       }
       case 'scale': {
         const [resource, replicas] = this.requireNativeArguments(name, args, 2, expression);
-        this.requireResourceArgument(resource, name, expression);
+        this.requireResourceKind(resource, 'service', name, expression);
         if (typeof replicas !== 'number' || !Number.isFinite(replicas)) {
           throw this.runtimeError('scale requiere una cantidad numérica de réplicas.', expression);
         }
+        const previousReplicas = resource.state.replicas ?? resource.properties.replicas;
         resource.state.replicas = replicas;
-        this.recordNativeAction(name, resource.name, replicas);
+        this.recordNativeAction(name, resource.name, replicas, previousReplicas);
+        return true;
+      }
+      case 'connect': {
+        const [source, target] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceArgument(source, name, expression);
+        this.requireResourceArgument(target, name, expression);
+        source.state.connections ??= [];
+        source.state.connections.push(target.name);
+        this.recordNativeAction(name, source.name, target.name);
+        return true;
+      }
+      case 'disconnect': {
+        const [source, target] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceArgument(source, name, expression);
+        this.requireResourceArgument(target, name, expression);
+        const connections = source.state.connections ?? [];
+        const connectionIndex = connections.indexOf(target.name);
+        if (connectionIndex === -1) {
+          return false;
+        }
+        connections.splice(connectionIndex, 1);
+        this.recordNativeAction(name, source.name, target.name);
         return true;
       }
       case 'print':
@@ -502,6 +629,11 @@ export class Interpreter {
           throw this.runtimeError('length requiere una cadena o un arreglo.', expression);
         }
         return value.length;
+      }
+      case 'status': {
+        const [resource] = this.requireNativeArguments(name, args, 1, expression);
+        this.requireResourceArgument(resource, name, expression);
+        return resource.state.status;
       }
       default:
         throw this.runtimeError(`Función nativa no soportada: ${name}.`, expression);
@@ -524,17 +656,46 @@ export class Interpreter {
     }
   }
 
-  recordNativeAction(action, resource, value = null) {
+  requireResourceKind(value, kind, action, expression) {
+    this.requireResourceArgument(value, action, expression);
+    if (value.kind !== kind) {
+      throw this.runtimeError(`${action} requiere un recurso de tipo ${kind}.`, expression);
+    }
+  }
+
+  recordNativeAction(action, resource, value = null, previousValue = null) {
     this.log.push({
       action,
       resource,
       ...(value === null ? {} : { value }),
+      ...(previousValue === null ? {} : { previousValue }),
     });
   }
 
   runtimeError(message, node) {
     return new RuntimeExecutionError(message, node);
   }
+}
+
+function defaultValue(dataType) {
+  if (dataType.dimensions > 0) {
+    return [];
+  }
+  switch (dataType.name) {
+    case 'int':
+    case 'float':
+      return 0;
+    case 'string':
+      return '';
+    case 'bool':
+      return false;
+    default:
+      return null;
+  }
+}
+
+function typeName(dataType) {
+  return `${dataType.name}${'[]'.repeat(dataType.dimensions)}`;
 }
 
 function isResource(value) {

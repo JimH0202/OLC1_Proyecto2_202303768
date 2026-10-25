@@ -41,8 +41,9 @@ parameter               = type, IDENTIFIER ;
 taskDeclaration        = TASK, IDENTIFIER, block ;
 mainDeclaration        = MAIN, block ;
 
-type                    = primitiveType, { LEFT_BRACKET, RIGHT_BRACKET } ;
-primitiveType           = INT | FLOAT | STRING | BOOL ;
+type                    = baseType, { LEFT_BRACKET, RIGHT_BRACKET } ;
+baseType                = INT | FLOAT | STRING | BOOL
+                        | SERVER | SERVICE | DATABASE ;
 ```
 
 Las declaraciones globales, los recursos, las funciones y las tareas pueden
@@ -51,8 +52,10 @@ debe contener exactamente un `main`, y este debe ser la última construcción de
 archivo.
 
 La forma de una función incluye un tipo de retorno porque el inventario léxico no
-define `void` como palabra reservada. El parser no comprobará que el cuerpo devuelva
-un valor compatible con ese tipo.
+define `void` como palabra reservada. Los tipos `server`, `service` y `database` se
+aceptan también en declaraciones de variables y parámetros para representar
+referencias. El parser no comprobará compatibilidad de tipos ni que el cuerpo
+devuelva un valor compatible con el tipo declarado.
 
 ## Bloques y sentencias
 

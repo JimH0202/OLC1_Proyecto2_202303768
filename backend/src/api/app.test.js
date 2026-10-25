@@ -152,7 +152,7 @@ test('execute route returns console, action log and grouped simulated infrastruc
         service api {}
         main {
           start(web);
-          deploy(api, web);
+          deploy(web, api);
           print("ready", length([1, 2]));
         }
       `,
@@ -166,6 +166,8 @@ test('execute route returns console, action log and grouped simulated infrastruc
   assert.equal(result.execution.status, 'completed');
   assert.deepEqual(result.execution.console, ['ready 2']);
   assert.deepEqual(result.execution.log, [
+    { action: 'register', resource: 'web' },
+    { action: 'register', resource: 'api' },
     { action: 'start', resource: 'web' },
     { action: 'deploy', resource: 'api', value: 'web' },
   ]);
@@ -173,10 +175,44 @@ test('execute route returns console, action log and grouped simulated infrastruc
     status: 'running',
   });
   assert.deepEqual(result.execution.infrastructure.services[0].state, {
-    status: 'deployed',
+    status: 'running',
     deployedTo: 'web',
   });
   assert.deepEqual(result.execution.infrastructure.databases, []);
+  assert.equal(
+    result.execution.symbols.find(({ identifier }) => identifier === 'web').value.status,
+    'running',
+  );
+});
+
+test('execute route returns structured infrastructure dependency errors', async () => {
+  const response = await fetch(`${baseUrl}/api/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: `
+        database db {}
+        service api { dependsOn = [db]; }
+        server backend {}
+        main { deploy(backend, api); }
+      `,
+    }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, false);
+  assert.equal(result.execution.status, 'failed');
+  assert.deepEqual(result.execution.errors[0], {
+    type: 'infrastructure',
+    message: "No se puede desplegar 'api'. Dependencia 'db' se encuentra en estado stopped.",
+    code: 'INFRA-004',
+    line: 5,
+    column: 22,
+  });
+  assert.deepEqual(result.execution.infrastructure.services[0].state, {
+    status: 'stopped',
+  });
 });
 
 test('executes the demonstration example through the API using only simulated state', async () => {
@@ -196,6 +232,7 @@ test('executes the demonstration example through the API using only simulated st
   assert.equal(result.execution.status, 'completed');
   assert.deepEqual(result.execution.console, ['AutoInfra listo']);
   assert.deepEqual(result.execution.log, [
+    { action: 'register', resource: 'web' },
     { action: 'start', resource: 'web' },
   ]);
   assert.deepEqual(result.execution.infrastructure.servers[0].state, {
@@ -222,6 +259,7 @@ test('execute route skips execution when source has syntax errors', async () => 
     success: false,
     console: [],
     log: [],
+    symbols: [],
     errors: [],
     infrastructure: {
       servers: [],
@@ -247,6 +285,7 @@ test('execute route returns runtime failures and keeps output already produced',
   assert.equal(result.execution.status, 'failed');
   assert.deepEqual(result.execution.console, ['started']);
   assert.deepEqual(result.execution.log, [
+    { action: 'register', resource: 'web' },
     { action: 'start', resource: 'web' },
   ]);
   assert.equal(result.execution.errors[0].type, 'runtime');

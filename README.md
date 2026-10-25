@@ -48,6 +48,9 @@ mantiene el estado y las acciones del espacio de trabajo, el servicio realiza la
 solicitudes HTTP y la vista presenta la interfaz sin acceder directamente a la API.
 La pantalla principal permite crear, abrir y guardar archivos `.infra`, ejecutar el
 programa y consultar salida, errores, tokens, AST y estado simulado.
+El AST puede inspeccionarse como árbol o JSON; la interfaz también muestra la tabla
+de símbolos observados durante la ejecución. La bitácora de acciones muestra cada
+cambio exitoso con una marca `[OK]` y resume los cambios de réplicas.
 
 El inventario de tokens para implementar el lexer está en
 [docs/ESPECIFICACION_LEXICA.md](./docs/ESPECIFICACION_LEXICA.md).
@@ -65,15 +68,20 @@ simulado inicial `stopped`.
 El recorrido e interpretación del AST está en
 `backend/src/interpreter/interpreter.js`; las acciones nativas de infraestructura
 se simulan en memoria. Las firmas incluidas son `start(recurso)`, `stop(recurso)`,
-`install(servidor, software)`, `deploy(servicio, servidor)`, `scale(recurso, cantidad)`,
-`print(...)` y `length(cadena_o_arreglo)`. `print` escribe en la consola simulada y
-las acciones sobre recursos actualizan su estado e historial. No se aplican las
-restricciones excluidas de despliegue/instalación según estado ni un mínimo de
-réplicas; las acciones repetidas no se deduplican ni generan advertencias al iniciar
-un recurso ya activo. `POST /api/execute` devuelve la consola, la bitácora, errores de
-ejecución y el estado de la infraestructura simulada; la interfaz permite ejecutar
-el ejemplo y consultar la respuesta JSON. El intérprete no configura máximos propios
-de instrucciones ejecutadas ni de profundidad de llamadas.
+`restart(recurso)`, `install(servidor, software)`,
+`uninstall(servidor, software)`, `deploy(servidor, servicio)`,
+`scale(servicio, cantidad)`, `connect(recurso, recurso)`,
+`disconnect(recurso, recurso)`, `status(recurso)`, `print(...)` y
+`length(cadena_o_arreglo)`. Las dependencias `dependsOn` se comprueban antes de
+desplegar y producen el error de infraestructura `INFRA-004` cuando una dependencia
+no está activa. `print` escribe en la consola simulada y las acciones sobre recursos
+actualizan su estado e historial. No se aplican las restricciones excluidas de
+despliegue/instalación según estado ni un mínimo de réplicas; las acciones repetidas
+no se deduplican ni generan advertencias al iniciar un recurso ya activo. La interfaz
+permite guardar como y limpiar los resultados de una ejecución. `POST /api/execute`
+devuelve la consola, la bitácora, errores de ejecución y el estado de la infraestructura
+simulada. El intérprete no configura máximos propios de instrucciones ejecutadas ni
+de profundidad de llamadas.
 
 ## Requisitos
 
@@ -103,12 +111,18 @@ cd backend
 npm run dev
 ```
 
+El backend escucha por defecto en `http://localhost:8080` (`PORT` permite
+sobrescribir el puerto).
+
 Inicia el frontend en otra terminal:
 
 ```bash
 cd frontend
 npm run dev
 ```
+
+Vite escucha en `http://localhost:5173` y no cambiará a otro puerto si este ya está
+ocupado. Las solicitudes `/api` del frontend se reenvían al backend en el puerto 8080.
 
 El contrato acordado para el intercambio de código y resultados se encuentra en
 [docs/CONTRATO_API.md](./docs/CONTRATO_API.md). El backend usará JSON y define los

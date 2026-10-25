@@ -57,17 +57,34 @@ export function useWorkspaceController() {
     }
   }
 
-  function saveFile() {
+  function saveFileAs(name) {
     const blob = new Blob([source], { type: 'text/plain;charset=utf-8' })
     const downloadUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = downloadUrl
-    link.download = fileName.endsWith('.infra') ? fileName : `${fileName}.infra`
+    link.download = name.endsWith('.infra') ? name : `${name}.infra`
     document.body.append(link)
     link.click()
     link.remove()
     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
     setMessage(`Archivo guardado: ${link.download}`)
+  }
+
+  function saveFile() {
+    saveFileAs(fileName)
+  }
+
+  function saveFileAsPrompt() {
+    const name = window.prompt('Nombre del archivo .infra', fileName)
+    if (name?.trim()) {
+      saveFileAs(name.trim())
+      setFileName(name.trim().endsWith('.infra') ? name.trim() : `${name.trim()}.infra`)
+    }
+  }
+
+  function clearExecution() {
+    setResult(null)
+    setMessage('')
   }
 
   async function validateConnection() {
@@ -117,6 +134,8 @@ export function useWorkspaceController() {
     createFile,
     openFile,
     saveFile,
+    saveFileAs: saveFileAsPrompt,
+    clearExecution,
     validateConnection,
     runProgram,
   }

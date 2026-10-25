@@ -258,6 +258,13 @@
   margin-bottom: 14px;
 }
 
+.result-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .results-heading h2 {
   margin: 0;
   color: #203429;
@@ -523,6 +530,7 @@
 }
 
 .tokens-panel,
+.symbols-panel,
 .ast-panel {
   grid-column: 1 / -1;
 }
@@ -532,7 +540,8 @@
   overflow: auto;
 }
 
-.tokens-panel table {
+.tokens-panel table,
+.symbols-panel table {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
@@ -540,13 +549,16 @@
 }
 
 .tokens-panel th,
-.tokens-panel td {
+.tokens-panel td,
+.symbols-panel th,
+.symbols-panel td {
   padding: 8px 12px;
   border-bottom: 1px solid #edf1ed;
   white-space: nowrap;
 }
 
-.tokens-panel th {
+.tokens-panel th,
+.symbols-panel th {
   position: sticky;
   top: 0;
   background: #f7faf7;
@@ -737,6 +749,7 @@
   }
 
   .tokens-panel,
+  .symbols-panel,
   .ast-panel {
     grid-column: auto;
   }
