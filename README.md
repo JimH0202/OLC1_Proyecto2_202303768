@@ -13,6 +13,7 @@ backend/
     controllers/  # Controladores de solicitudes
     models/       # Modelos de resultados
     services/     # Casos de uso y análisis del lenguaje
+    environment/  # Variables y recursos simulados en memoria
     ast/          # Fábrica y tipos de nodos del AST
     lexer/
     parser/
@@ -53,6 +54,9 @@ subconjunto que reconoce está en
 [docs/GRAMATICA_AUTOINFRA.md](./docs/GRAMATICA_AUTOINFRA.md).
 El parser construye nodos JSON mediante la fábrica y catálogo de
 `backend/src/ast/nodes.js`; cada nodo conserva su línea y columna de origen.
+El entorno de ejecución en memoria está en `backend/src/environment/environment.js`.
+Mantiene valores de variables por ámbito y un registro de recursos simulado compartido
+entre ámbitos; no se conecta ni modifica servicios externos.
 
 ## Requisitos
 

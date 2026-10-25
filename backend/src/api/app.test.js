@@ -59,6 +59,25 @@ test('analyze route returns lexical and syntactic analysis', async () => {
   assert.equal(result.execution, null);
 });
 
+test('analyze route exposes an inspectable AST with multiplication grouped first', async () => {
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'main { result = a + b * c; }' }),
+  });
+  const result = await response.json();
+  const expression = result.analysis.ast.body[0].body.statements[0].value;
+
+  assert.equal(result.success, true);
+  assert.equal(expression.type, 'BinaryExpression');
+  assert.equal(expression.operator, '+');
+  assert.equal(expression.left.name, 'a');
+  assert.equal(expression.right.type, 'BinaryExpression');
+  assert.equal(expression.right.operator, '*');
+  assert.equal(expression.right.left.name, 'b');
+  assert.equal(expression.right.right.name, 'c');
+});
+
 test('analyze route returns located syntax errors without an AST', async () => {
   const response = await fetch(`${baseUrl}/api/analyze`, {
     method: 'POST',
@@ -72,6 +91,35 @@ test('analyze route returns located syntax errors without an AST', async () => {
   assert.equal(result.analysis.errors[0].type, 'syntactic');
   assert.equal(result.analysis.errors[0].line, 1);
   assert.equal(result.analysis.ast, null);
+});
+
+test('analyze route stops at the first located syntax error', async () => {
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      source: 'main {\n  int first = ;\n  int second = ;\n}',
+    }),
+  });
+  const result = await response.json();
+
+  assert.equal(result.success, false);
+  assert.equal(result.analysis.ast, null);
+  assert.equal(result.analysis.errors.length, 1);
+  assert.deepEqual(
+    {
+      type: result.analysis.errors[0].type,
+      line: result.analysis.errors[0].line,
+      column: result.analysis.errors[0].column,
+      lexeme: result.analysis.errors[0].lexeme,
+    },
+    {
+      type: 'syntactic',
+      line: 2,
+      column: 15,
+      lexeme: ';',
+    },
+  );
 });
 
 test('analyze route returns lexical errors before invoking the parser', async () => {
