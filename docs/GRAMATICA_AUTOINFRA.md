@@ -1,30 +1,76 @@
-# Gramática sintáctica de AutoInfra
+# Gramática completa de AutoInfra
 
-Este documento define el subconjunto de AutoInfra que consumirá el parser. La
-gramática se expresa en EBNF y utiliza los nombres de token de
-`backend/src/lexer/token-types.js`. Los espacios y comentarios son ignorados por el
-lexer; `EOF` representa el fin del archivo.
+Este documento especifica la gramática léxica y sintáctica que implementan el
+analizador léxico y el parser del proyecto. Está escrita en EBNF; el parser es manual,
+de descenso recursivo, y construye un AST propio. Esta gramática describe sintaxis,
+no valida tipos, declaraciones, ámbitos, firmas ni restricciones semánticas.
 
-La gramática determina únicamente si la secuencia de tokens tiene una estructura
-válida. No comprueba declaraciones, ámbitos, tipos, firmas, propiedades, referencias
-ni restricciones de recursos. Esas comprobaciones semánticas quedan fuera del alcance
-acordado.
+## Convenciones EBNF
 
-## Notación
-
-- `{ X }` significa cero o más repeticiones de `X`.
-- `[ X ]` significa que `X` es opcional.
+- `A = B ;` define una regla.
 - `|` separa alternativas.
-- Los nombres en mayúsculas son tokens; los nombres en minúsculas son reglas.
+- `{ X }` representa cero o más repeticiones.
+- `[ X ]` representa un elemento opcional.
+- Los nombres en mayúsculas representan tokens.
+- `EOF` representa el fin del archivo.
 
-## Programas y declaraciones
+## Gramática léxica
+
+Los espacios en blanco, tabulaciones, retornos de carro y saltos de línea separan
+tokens y no se emiten. Las posiciones de línea y columna empiezan en `1`. Las
+palabras reservadas distinguen mayúsculas de minúsculas.
 
 ```ebnf
-program                 = { globalDeclaration | resourceDeclaration
-                            | functionDeclaration | taskDeclaration },
-                          mainDeclaration, EOF ;
+letter                  = "A" | ... | "Z" | "a" | ... | "z" | "_" ;
+digit                   = "0" | ... | "9" ;
+identifier              = ( letter ), { letter | digit } ;
 
-globalDeclaration       = variableDeclaration ;
+integerLiteral          = digit, { digit } ;
+floatLiteral            = digit, { digit }, ".", digit, { digit } ;
+
+stringLiteral           = '"', { stringCharacter | escapeSequence }, '"' ;
+stringCharacter         = cualquier carácter excepto comilla doble (U+0022),
+                          barra inversa (U+005C), CR o LF ;
+escapeSequence          = barra inversa, ( '"' | barra inversa | "n" | "t" ) ;
+
+lineComment             = "//", { cualquier carácter excepto CR o LF } ;
+blockComment            = "/*", { cualquier carácter o salto de línea }, "*/" ;
+
+reservedWord            = "int" | "float" | "string" | "bool"
+                        | "server" | "service" | "database"
+                        | "if" | "else" | "while" | "for"
+                        | "break" | "continue" | "return"
+                        | "function" | "task" | "main" | "run"
+                        | "true" | "false" ;
+
+operator                = "+" | "-" | "*" | "/" | "%"
+                        | "=" | ">" | "<" | ">=" | "<="
+                        | "==" | "!=" | "&&" | "||" | "!" ;
+
+punctuation             = "(" | ")" | "{" | "}" | "[" | "]"
+                        | "," | ";" | "." ;
+```
+
+Los operadores de dos caracteres se reconocen antes que sus prefijos de un carácter.
+El signo `-` es un operador unario o binario, no parte del token numérico. `1.0` es
+decimal; un punto que no forma parte de un decimal es el operador de acceso a
+propiedad. Los comentarios no generan tokens. Los escapes aceptados en cadenas son
+comillas dobles, barra inversa, nueva línea y tabulación.
+
+Un carácter desconocido, una cadena sin cierre, un comentario multilínea sin cierre
+o un escape no permitido genera un error léxico con línea y columna. El lexer puede
+continuar escaneando para informar otros errores léxicos. Si hay errores léxicos, el
+servicio no invoca el parser.
+
+## Gramática sintáctica
+
+```ebnf
+program                 = { declaration }, mainDeclaration, EOF ;
+
+declaration             = variableDeclaration
+                        | resourceDeclaration
+                        | functionDeclaration
+                        | taskDeclaration ;
 
 variableDeclaration     = type, IDENTIFIER, [ ASSIGN, expression ], SEMICOLON ;
 
@@ -44,22 +90,7 @@ mainDeclaration        = MAIN, block ;
 type                    = baseType, { LEFT_BRACKET, RIGHT_BRACKET } ;
 baseType                = INT | FLOAT | STRING | BOOL
                         | SERVER | SERVICE | DATABASE ;
-```
 
-Las declaraciones globales, los recursos, las funciones y las tareas pueden
-intercalarse antes de `main`; el orden entre esas categorías no se valida. El programa
-debe contener exactamente un `main`, y este debe ser la última construcción del
-archivo.
-
-La forma de una función incluye un tipo de retorno porque el inventario léxico no
-define `void` como palabra reservada. Los tipos `server`, `service` y `database` se
-aceptan también en declaraciones de variables y parámetros para representar
-referencias. El parser no comprobará compatibilidad de tipos ni que el cuerpo
-devuelva un valor compatible con el tipo declarado.
-
-## Bloques y sentencias
-
-```ebnf
 block                   = LEFT_BRACE, { statement }, RIGHT_BRACE ;
 
 statement               = block
@@ -76,24 +107,21 @@ statement               = block
 
 assignmentStatement     = assignmentTarget, ASSIGN, expression, SEMICOLON ;
 assignmentTarget        = IDENTIFIER, { propertySuffix | indexSuffix } ;
-propertySuffix          = DOT, IDENTIFIER ;
-indexSuffix             = LEFT_BRACKET, expression, RIGHT_BRACKET ;
 expressionStatement     = expression, SEMICOLON ;
 
 ifStatement             = IF, LEFT_PAREN, expression, RIGHT_PAREN, statement,
                           [ ELSE, statement ] ;
 whileStatement          = WHILE, LEFT_PAREN, expression, RIGHT_PAREN, statement ;
 
-forStatement            = FOR, LEFT_PAREN,
-                          [ forInitializer ], SEMICOLON,
-                          [ expression ], SEMICOLON,
-                          [ forUpdate ], RIGHT_PAREN, statement ;
+forStatement            = FOR, LEFT_PAREN, [ forInitializer ], SEMICOLON,
+                          [ expression ], SEMICOLON, [ forUpdate ],
+                          RIGHT_PAREN, statement ;
 forInitializer          = variableDeclarationCore
-                        | assignmentCore
-                        | expression ;
+                        | assignmentOrExpressionCore ;
 variableDeclarationCore = type, IDENTIFIER, [ ASSIGN, expression ] ;
-forUpdate               = assignmentCore | expression ;
-assignmentCore          = assignmentTarget, ASSIGN, expression ;
+forUpdate               = assignmentOrExpressionCore ;
+assignmentOrExpressionCore
+                        = expression, [ ASSIGN, expression ] ;
 
 runStatement            = RUN, IDENTIFIER,
                           [ LEFT_PAREN, [ argumentList ], RIGHT_PAREN ],
@@ -101,35 +129,22 @@ runStatement            = RUN, IDENTIFIER,
 returnStatement         = RETURN, [ expression ], SEMICOLON ;
 breakStatement          = BREAK, SEMICOLON ;
 continueStatement       = CONTINUE, SEMICOLON ;
-```
 
-La gramática acepta expresiones en las condiciones y no comprueba que produzcan un
-booleano. Tampoco comprueba si `break`, `continue` o `return` aparecen en un contexto
-de ejecución válido.
-
-Si una secuencia no coincide con la gramática, el parser informa el primer error
-sintáctico con línea, columna y lexema. El parser detiene el análisis en ese error; no
-intenta sincronizar ni recuperar el análisis.
-
-## Expresiones y precedencia
-
-Las reglas están ordenadas de menor a mayor precedencia. Los operadores binarios de
-cada nivel son asociativos por la izquierda. La asignación se restringe a las reglas
-de sentencia y a las cláusulas de `for`.
-
-```ebnf
 expression              = logicalOr ;
 logicalOr                = logicalAnd, { OR_OR, logicalAnd } ;
 logicalAnd               = equality, { AND_AND, equality } ;
-equality                 = comparison, { ( EQUAL_EQUAL | BANG_EQUAL ), comparison } ;
+equality                 = comparison,
+                          { ( EQUAL_EQUAL | BANG_EQUAL ), comparison } ;
 comparison               = term,
-                           { ( GREATER | GREATER_EQUAL | LESS | LESS_EQUAL ), term } ;
+                          { ( GREATER | GREATER_EQUAL | LESS | LESS_EQUAL ), term } ;
 term                     = factor, { ( PLUS | MINUS ), factor } ;
 factor                   = unary, { ( STAR | SLASH | PERCENT ), unary } ;
 unary                    = ( BANG | MINUS ), unary | postfix ;
 
 postfix                  = primary, { callSuffix | propertySuffix | indexSuffix } ;
 callSuffix               = LEFT_PAREN, [ argumentList ], RIGHT_PAREN ;
+propertySuffix           = DOT, IDENTIFIER ;
+indexSuffix              = LEFT_BRACKET, expression, RIGHT_BRACKET ;
 argumentList             = expression, { COMMA, expression } ;
 
 primary                  = INTEGER_LITERAL
@@ -143,51 +158,71 @@ primary                  = INTEGER_LITERAL
 arrayLiteral             = LEFT_BRACKET, [ argumentList ], RIGHT_BRACKET ;
 ```
 
+## Desambiguación y asociatividad
+
+Una declaración de recurso y una variable de referencia empiezan con la misma
+palabra (`server`, `service` o `database`). Se reconoce una declaración de recurso
+cuando después del tipo y el identificador viene `{`; por ejemplo, `server node {}`
+declara un recurso y `server node;` declara una variable de referencia.
+
+Las declaraciones globales de variables, recursos, funciones y tareas pueden
+intercalarse antes de `main`. El programa requiere exactamente una declaración
+`main`, al final del archivo. El tipo de retorno de las funciones es obligatorio; no
+existe un token reservado `void`.
+
+Los operadores binarios de cada nivel son asociativos por la izquierda. De menor a
+mayor precedencia:
+
+1. `||`
+2. `&&`
+3. `==`, `!=`
+4. `<`, `<=`, `>`, `>=`
+5. `+`, `-`
+6. `*`, `/`, `%`
+7. `!`, `-` unarios
+8. llamadas, acceso a propiedades e índices
+
 Por ejemplo, `a + b * c` se agrupa como `a + (b * c)`, y `!ready || count >= 2`
-como `(!ready) || (count >= 2)`. La sintaxis permite arreglos, pero no se valida que
-sus elementos sean del mismo tipo.
+como `(!ready) || (count >= 2)`. Los paréntesis permiten modificar explícitamente
+la agrupación. El intérprete implementa cortocircuito para `&&` y `||`.
 
-## Ejemplos cubiertos
+## Límites del análisis
 
-Declaración de recursos y bloque principal:
+El parser informa el primer error sintáctico localizado y detiene el análisis; no
+realiza sincronización ni recuperación para acumular errores. La gramática no
+determina si nombres existen, si tipos o argumentos son compatibles, si un arreglo es
+homogéneo, si una propiedad existe o es de solo lectura, ni si una condición produce
+un booleano. Esas validaciones semánticas están fuera del alcance acordado.
+
+## Ejemplo
 
 ```infra
-server web {
-    cpu = 2;
-    memory = 4;
+server backend {
+    cpu = 4;
+    memory = 8;
+    disk = 100;
+    os = "ubuntu";
+}
+
+service api {
+    port = 8080;
+    replicas = 2;
+}
+
+function canDeploy(server host, int minimumMemory) bool {
+    return host.memory >= minimumMemory;
+}
+
+task production {
+    start(backend);
+    if (canDeploy(backend, 8)) {
+        deploy(backend, api);
+        scale(api, 3);
+    }
 }
 
 main {
-    start(web);
-    print("AutoInfra listo");
+    run production;
+    print(api.status);
 }
 ```
-
-Declaraciones, función, tarea, control de flujo y arreglo:
-
-```infra
-int count = 1;
-function isReady(int amount) bool {
-    return amount > 0;
-}
-task prepare {
-    run setup;
-}
-main {
-    if (isReady(count)) {
-        count = count + 1;
-    } else {
-        count = 0;
-    }
-    for (int i = 0; i < 2; i = i + 1) {
-        print([count, i]);
-    }
-}
-```
-
-## Fuera del análisis sintáctico
-
-El parser no resolverá nombres ni aplicará reglas semánticas. En particular, que una
-construcción sea aceptada por esta gramática no implica que los identificadores estén
-declarados, que los tipos coincidan, que las llamadas tengan una firma válida, que una
-propiedad exista o que una condición tenga tipo booleano.

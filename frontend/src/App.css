@@ -204,15 +204,19 @@
 
 .code-editor {
   display: grid;
-  min-height: 310px;
+  height: clamp(240px, 42vh, 420px);
+  min-height: 0;
   grid-template-columns: 48px minmax(0, 1fr);
+  overflow: hidden;
   background: #19251e;
 }
 
 .line-numbers {
   display: flex;
+  height: 100%;
   flex-direction: column;
   align-items: end;
+  overflow: hidden;
   padding: 16px 11px 16px 0;
   color: #728276;
   font: 13px/1.65 var(--mono);
@@ -221,8 +225,10 @@
 
 .code-editor textarea {
   width: 100%;
-  min-height: 310px;
-  resize: vertical;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  overflow: auto;
   padding: 16px 18px 16px 4px;
   border: 0;
   outline: 0;
@@ -754,9 +760,8 @@
     grid-column: auto;
   }
 
-  .code-editor,
-  .code-editor textarea {
-    min-height: 280px;
+  .code-editor {
+    height: clamp(220px, 38vh, 320px);
   }
 }
 

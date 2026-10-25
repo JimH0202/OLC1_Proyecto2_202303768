@@ -156,6 +156,7 @@ export function WorkspaceView({
   onRunProgram,
 }) {
   const fileInput = useRef(null)
+  const lineNumbersRef = useRef(null)
   const [astView, setAstView] = useState('tree')
   const [astExpanded, setAstExpanded] = useState(false)
   const analysis = result?.analysis
@@ -167,6 +168,12 @@ export function WorkspaceView({
   async function handleFileChange(event) {
     await onOpen(event.target.files?.[0])
     event.target.value = ''
+  }
+
+  function handleEditorScroll(event) {
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = event.currentTarget.scrollTop
+    }
   }
 
   return (
@@ -249,7 +256,7 @@ export function WorkspaceView({
           </div>
 
           <div className="code-editor">
-            <div className="line-numbers" aria-hidden="true">
+            <div ref={lineNumbersRef} className="line-numbers" aria-hidden="true">
               {source.split('\n').map((_, index) => <span key={index}>{index + 1}</span>)}
             </div>
             <textarea
@@ -258,6 +265,7 @@ export function WorkspaceView({
               autoCapitalize="off"
               autoComplete="off"
               value={source}
+              onScroll={handleEditorScroll}
               onChange={(event) => onSourceChange(event.target.value)}
             />
           </div>

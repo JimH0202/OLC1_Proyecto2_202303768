@@ -130,3 +130,13 @@ endpoints `GET /api/health`, `POST /api/analyze` y `POST /api/execute`. La panta
 inicial permite verificar el envío del código al endpoint temporal
 `POST /api/connection-test`; este prueba la comunicación HTTP y no analiza ni ejecuta
 el lenguaje.
+
+## Documentación
+
+- [Manual de usuario](./docs/MANUAL_USUARIO.md): iniciar la aplicación, crear,
+  abrir, guardar y ejecutar archivos, y consultar los reportes. Incluye capturas de
+  pantalla de la interfaz.
+- [Manual técnico](./docs/MANUAL_TECNICO.md): arquitectura, dependencias, módulos,
+  flujo de análisis e interpretación y comandos de validación.
+- [Gramática completa de AutoInfra](./docs/GRAMATICA_AUTOINFRA.md): especificación
+  léxica y sintáctica en EBNF del lenguaje reconocido por el proyecto.
