@@ -1,0 +1,22 @@
+// Cobertura del catálogo de tokens; el archivo se usa para probar el lexer.
+int count = 12;
+float ratio = 2.5;
+string message = "quote: \" slash: \\ newline: \n tab: \t";
+bool enabled = true;
+bool disabled = false;
+server web {}
+service api {}
+database data {}
+function prepare(int amount, bool ready) bool { return amount != 0; }
+task rollout { run setup; }
+main {
+    if (count >= 1 && enabled || !disabled) {
+        count = count + 1 - 2 * 3 / 4 % 2;
+    } else {
+        count = count <= 0 || count < 2 && count > 0;
+    }
+    while (enabled == true) { break; }
+    for (int i = 0; i < 2; i = i + 1) { continue; }
+    values[0] = (count);
+    web.status = "stopped";
+}

@@ -109,3 +109,11 @@ restricciones. Esas validaciones semánticas no forman parte del proyecto acorda
 El cursor implementa `readStringLiteral()` para devolver el lexema original con
 comillas y el valor decodificado por separado; el escáner lo utilizará al emitir el
 token `STRING_LITERAL`.
+
+## Ejemplos y pruebas
+
+Los archivos de `examples/lexer/` cubren las categorías del catálogo y errores léxicos
+deliberados. El ejemplo `token-catalog.infra` contiene al menos una instancia de cada
+tipo de token; los ejemplos bajo `errors/` cubren carácter desconocido, cadena y
+comentario sin cierre y escape no permitido. Las pruebas automatizadas se ejecutan con
+`cd backend` y `npm test`.
