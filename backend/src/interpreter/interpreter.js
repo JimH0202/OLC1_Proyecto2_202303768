@@ -1,7 +1,14 @@
-import { AST_NODE_TYPES } from '../ast/nodes.js';
 import { Environment, RuntimeEnvironmentError } from '../environment/environment.js';
 
-const nodeTypes = new Set(AST_NODE_TYPES);
+const nativeFunctionNames = new Set([
+  'start',
+  'stop',
+  'install',
+  'deploy',
+  'scale',
+  'print',
+  'length',
+]);
 
 export class RuntimeExecutionError extends Error {
   constructor(message, node = null) {
@@ -40,6 +47,8 @@ export class Interpreter {
     this.environment = environment;
     this.functions = new Map();
     this.tasks = new Map();
+    this.console = [];
+    this.log = [];
   }
 
   interpret(program) {
@@ -47,6 +56,8 @@ export class Interpreter {
       throw new TypeError('El intérprete requiere un nodo raíz Program.');
     }
 
+    this.console = [];
+    this.log = [];
     try {
       this.registerCallableDeclarations(program.body);
       for (const declaration of program.body) {
@@ -65,6 +76,9 @@ export class Interpreter {
       this.executeStatement(main.body, this.environment);
       return {
         success: true,
+        console: [...this.console],
+        log: [...this.log],
+        errors: [],
         environment: this.environment,
         resources: this.environment.listResources(),
       };
@@ -72,6 +86,8 @@ export class Interpreter {
       if (error instanceof RuntimeExecutionError) {
         return {
           success: false,
+          console: [...this.console],
+          log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
           errors: [error.toJSON()],
@@ -87,6 +103,8 @@ export class Interpreter {
         const runtimeError = new RuntimeExecutionError(message, program);
         return {
           success: false,
+          console: [...this.console],
+          log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
           errors: [runtimeError.toJSON()],
@@ -96,6 +114,8 @@ export class Interpreter {
         const runtimeError = new RuntimeExecutionError(error.message, program);
         return {
           success: false,
+          console: [...this.console],
+          log: [...this.log],
           environment: this.environment,
           resources: this.environment.listResources(),
           errors: [runtimeError.toJSON()],
@@ -395,6 +415,10 @@ export class Interpreter {
       throw this.runtimeError('Solo se pueden invocar funciones identificadas por nombre.', expression);
     }
 
+    if (nativeFunctionNames.has(expression.callee.name)) {
+      return this.evaluateNativeCall(expression, environment);
+    }
+
     const declaration = this.functions.get(expression.callee.name);
     if (!declaration) {
       throw this.runtimeError(`Función no definida: ${expression.callee.name}.`, expression);
@@ -420,6 +444,94 @@ export class Interpreter {
     return null;
   }
 
+  evaluateNativeCall(expression, environment) {
+    const name = expression.callee.name;
+    const args = expression.arguments.map((argument) => this.evaluateExpression(argument, environment));
+
+    switch (name) {
+      case 'start': {
+        const [resource] = this.requireNativeArguments(name, args, 1, expression);
+        this.requireResourceArgument(resource, name, expression);
+        resource.state.status = 'running';
+        this.recordNativeAction(name, resource.name);
+        return true;
+      }
+      case 'stop': {
+        const [resource] = this.requireNativeArguments(name, args, 1, expression);
+        this.requireResourceArgument(resource, name, expression);
+        resource.state.status = 'stopped';
+        this.recordNativeAction(name, resource.name);
+        return true;
+      }
+      case 'install': {
+        const [server, software] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceArgument(server, name, expression);
+        if (typeof software !== 'string') {
+          throw this.runtimeError('install requiere el nombre del software como cadena.', expression);
+        }
+        server.state.installed ??= [];
+        server.state.installed.push(software);
+        this.recordNativeAction(name, server.name, software);
+        return true;
+      }
+      case 'deploy': {
+        const [service, server] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceArgument(service, name, expression);
+        this.requireResourceArgument(server, name, expression);
+        service.state.deployedTo = server.name;
+        service.state.status = 'deployed';
+        this.recordNativeAction(name, service.name, server.name);
+        return true;
+      }
+      case 'scale': {
+        const [resource, replicas] = this.requireNativeArguments(name, args, 2, expression);
+        this.requireResourceArgument(resource, name, expression);
+        if (typeof replicas !== 'number' || !Number.isFinite(replicas)) {
+          throw this.runtimeError('scale requiere una cantidad numérica de réplicas.', expression);
+        }
+        resource.state.replicas = replicas;
+        this.recordNativeAction(name, resource.name, replicas);
+        return true;
+      }
+      case 'print':
+        this.console.push(args.map(formatConsoleValue).join(' '));
+        return null;
+      case 'length': {
+        const [value] = this.requireNativeArguments(name, args, 1, expression);
+        if (typeof value !== 'string' && !Array.isArray(value)) {
+          throw this.runtimeError('length requiere una cadena o un arreglo.', expression);
+        }
+        return value.length;
+      }
+      default:
+        throw this.runtimeError(`Función nativa no soportada: ${name}.`, expression);
+    }
+  }
+
+  requireNativeArguments(name, args, expectedCount, expression) {
+    if (args.length !== expectedCount) {
+      throw this.runtimeError(
+        `${name} requiere ${expectedCount} argumento(s); recibió ${args.length}.`,
+        expression,
+      );
+    }
+    return args;
+  }
+
+  requireResourceArgument(value, action, expression) {
+    if (!isResource(value)) {
+      throw this.runtimeError(`${action} requiere un recurso como argumento.`, expression);
+    }
+  }
+
+  recordNativeAction(action, resource, value = null) {
+    this.log.push({
+      action,
+      resource,
+      ...(value === null ? {} : { value }),
+    });
+  }
+
   runtimeError(message, node) {
     return new RuntimeExecutionError(message, node);
   }
@@ -432,4 +544,17 @@ function isResource(value) {
     && typeof value.name === 'string'
     && value.properties !== null
     && typeof value.properties === 'object';
+}
+
+function formatConsoleValue(value) {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value !== null && typeof value === 'object' && typeof value.toJSON === 'function') {
+    return JSON.stringify(value.toJSON());
+  }
+  if (value !== null && typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+  return String(value);
 }

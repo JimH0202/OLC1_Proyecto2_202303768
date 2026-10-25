@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { Environment } from '../environment/environment.js';
 import { Lexer } from '../lexer/lexer.js';
@@ -12,6 +13,19 @@ function interpret(source) {
   assert.deepEqual(syntaxErrors, []);
   return new Interpreter().interpret(ast);
 }
+
+test('executes the shared smoke-test file using native actions', async () => {
+  const source = await readFile(
+    new URL('../../../examples/smoke-test.infra', import.meta.url),
+    'utf8',
+  );
+  const result = interpret(source);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.console, ['AutoInfra listo']);
+  assert.equal(result.resources[0].state.status, 'running');
+  assert.deepEqual(result.errors, []);
+});
 
 test('walks the program AST and initializes global variables and resources in memory', () => {
   const result = interpret(`
@@ -82,6 +96,92 @@ test('executes resource property reads and assignments in simulated memory', () 
       status: 'stopped',
     },
   }]);
+});
+
+test('executes the native start and stop actions against simulated resource state', () => {
+  const result = interpret(`
+    server web {}
+    main {
+      start(web);
+      stop(web);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.resources[0].state.status, 'stopped');
+  assert.deepEqual(result.log, [
+    { action: 'start', resource: 'web' },
+    { action: 'stop', resource: 'web' },
+  ]);
+});
+
+test('simulates install, deploy and scale without excluded domain restrictions', () => {
+  const result = interpret(`
+    server web {}
+    service api {}
+    main {
+      install(web, "nginx");
+      deploy(api, web);
+      scale(api, 0);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.deepEqual(result.resources, [
+    {
+      kind: 'server',
+      name: 'web',
+      properties: {},
+      state: {
+        status: 'stopped',
+        installed: ['nginx'],
+      },
+    },
+    {
+      kind: 'service',
+      name: 'api',
+      properties: {},
+      state: {
+        status: 'deployed',
+        deployedTo: 'web',
+        replicas: 0,
+      },
+    },
+  ]);
+  assert.deepEqual(result.log, [
+    { action: 'install', resource: 'web', value: 'nginx' },
+    { action: 'deploy', resource: 'api', value: 'web' },
+    { action: 'scale', resource: 'api', value: 0 },
+  ]);
+});
+
+test('prints values to the simulated console and evaluates length for strings and arrays', () => {
+  const result = interpret(`
+    int textLength = length("AutoInfra");
+    int itemCount = length([10, 20, 30]);
+    main {
+      print("lengths:", textLength, itemCount);
+      print([true, "ok"]);
+    }
+  `);
+
+  assert.equal(result.success, true);
+  assert.equal(result.environment.getVariable('textLength'), 9);
+  assert.equal(result.environment.getVariable('itemCount'), 3);
+  assert.deepEqual(result.console, [
+    'lengths: 9 3',
+    '[true,"ok"]',
+  ]);
+});
+
+test('reports invalid native calls as located runtime errors', () => {
+  const result = interpret('server web {}\nmain { scale(web, "many"); }');
+
+  assert.equal(result.success, false);
+  assert.equal(result.errors[0].type, 'runtime');
+  assert.match(result.errors[0].message, /cantidad numérica/);
+  assert.equal(result.errors[0].line, 2);
+  assert.equal(result.errors[0].column, 13);
 });
 
 test('reports an assignment to an undefined variable as a located runtime error', () => {

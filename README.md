@@ -63,7 +63,12 @@ Los recursos `server`, `service` y `database` se representan en
 simulado inicial `stopped`.
 El recorrido e interpretación del AST está en
 `backend/src/interpreter/interpreter.js`; las acciones nativas de infraestructura
-quedan para sus pasos posteriores de implementación.
+se simulan en memoria. Las firmas incluidas son `start(recurso)`, `stop(recurso)`,
+`install(servidor, software)`, `deploy(servicio, servidor)`, `scale(recurso, cantidad)`,
+`print(...)` y `length(cadena_o_arreglo)`. `print` escribe en la consola simulada y
+las acciones sobre recursos actualizan su estado e historial. No se aplican las
+restricciones excluidas de despliegue/instalación según estado ni un mínimo de
+réplicas.
 
 ## Requisitos
 
