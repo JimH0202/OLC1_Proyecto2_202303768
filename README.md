@@ -13,6 +13,7 @@ backend/
     controllers/  # Controladores de solicitudes
     models/       # Modelos de resultados
     services/     # Casos de uso y análisis del lenguaje
+    ast/          # Fábrica y tipos de nodos del AST
     lexer/
     parser/
 frontend/
@@ -50,6 +51,8 @@ El inventario de tokens para implementar el lexer está en
 El parser está implementado en `backend/src/parser/parser.js`; la gramática del
 subconjunto que reconoce está en
 [docs/GRAMATICA_AUTOINFRA.md](./docs/GRAMATICA_AUTOINFRA.md).
+El parser construye nodos JSON mediante la fábrica y catálogo de
+`backend/src/ast/nodes.js`; cada nodo conserva su línea y columna de origen.
 
 ## Requisitos
 

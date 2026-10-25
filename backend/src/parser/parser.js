@@ -1,4 +1,5 @@
 import { TokenType } from '../lexer/token-types.js';
+import { createAstNode as createNode } from '../ast/nodes.js';
 
 const resourceTypes = new Set([
   TokenType.SERVER,
@@ -561,15 +562,6 @@ class ParserSyntaxError extends Error {
       lexeme: this.lexeme,
     };
   }
-}
-
-function createNode(type, token, properties = {}) {
-  return {
-    type,
-    ...properties,
-    line: token.line,
-    column: token.column,
-  };
 }
 
 function isAssignmentTarget(expression) {

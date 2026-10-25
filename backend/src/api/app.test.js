@@ -74,6 +74,25 @@ test('analyze route returns located syntax errors without an AST', async () => {
   assert.equal(result.analysis.ast, null);
 });
 
+test('analyze route returns lexical errors before invoking the parser', async () => {
+  const response = await fetch(`${baseUrl}/api/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'main { @ }' }),
+  });
+  const result = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(result.success, false);
+  assert.equal(result.analysis.success, false);
+  assert.equal(result.analysis.errors.length, 1);
+  assert.equal(result.analysis.errors[0].type, 'lexical');
+  assert.equal(result.analysis.errors[0].line, 1);
+  assert.equal(result.analysis.errors[0].column, 8);
+  assert.equal(result.analysis.ast, null);
+  assert.equal(result.execution, null);
+});
+
 test('source validation is handled by the controller', async () => {
   const response = await fetch(`${baseUrl}/api/analyze`, {
     method: 'POST',

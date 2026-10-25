@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { AST_NODE_TYPES } from '../ast/nodes.js';
 import { Lexer } from '../lexer/lexer.js';
 import { Parser } from './parser.js';
 
@@ -166,6 +167,45 @@ test('parses unary, grouping, array, call, index and property primary expression
   assert.equal(array.elements[0].operator, '!');
   assert.equal(array.elements[1].type, 'UnaryExpression');
   assert.equal(array.elements[1].operand.value, 2.5);
+});
+
+test('builds located AST nodes for all supported language constructs', () => {
+  const { ast, errors } = parse(`
+    int count = 1;
+    server web { cpu = 2; }
+    function ready(int value) bool { return !false && value >= 1; }
+    task setup { run deploy(web); }
+    main {
+      values[0] = web.status;
+      if (ready(count)) { count = count + 1; } else { count = -1; }
+      while (count > 0) { break; }
+      for (int i = 0; i < 1; i = i + 1) { continue; }
+      print([count, 2.5, "ok", true]);
+    }
+  `);
+  const foundTypes = new Set();
+  const nodes = [];
+
+  function collect(value) {
+    if (Array.isArray(value)) {
+      value.forEach(collect);
+    } else if (value && typeof value === 'object') {
+      if (typeof value.type === 'string') {
+        foundTypes.add(value.type);
+        nodes.push(value);
+      }
+      Object.values(value).forEach(collect);
+    }
+  }
+
+  collect(ast);
+
+  assert.deepEqual(errors, []);
+  for (const type of AST_NODE_TYPES) {
+    assert.ok(foundTypes.has(type), `Falta nodo AST ${type}`);
+  }
+  assert.ok(nodes.every(({ line, column }) => line >= 1 && column >= 1));
+  assert.doesNotThrow(() => JSON.stringify(ast));
 });
 
 test('accepts property and index assignment targets without semantic checks', () => {
